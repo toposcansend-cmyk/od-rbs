@@ -1,0 +1,342 @@
+{
+ "versao": "1.0",
+ "fonte": "ancoras dos 42 pontos de pesquisa",
+ "pois": [
+  {
+   "nome": "Prefeitura",
+   "ponto_id": "PU01",
+   "bairro": "Centro",
+   "lat": -25.19303,
+   "lon": -49.31344,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Parada de Ônibus",
+   "ponto_id": "PU02",
+   "bairro": "Centro",
+   "lat": -25.19276,
+   "lon": -49.31271,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Hospital",
+   "ponto_id": "PU03",
+   "bairro": "Centro",
+   "lat": -25.19191,
+   "lon": -49.31198,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Posto de Gasolina",
+   "ponto_id": "PU04",
+   "bairro": "Centro",
+   "lat": -25.19118,
+   "lon": -49.31352,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Lotérica",
+   "ponto_id": "PU05",
+   "bairro": "Centro",
+   "lat": -25.18816,
+   "lon": -49.31406,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "DETRAN",
+   "ponto_id": "PU06",
+   "bairro": "Centro",
+   "lat": -25.18721,
+   "lon": -49.31446,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Praça Vila Velha",
+   "ponto_id": "PU07",
+   "bairro": "Natânia",
+   "lat": -25.18433,
+   "lon": -49.31224,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "SEMOP",
+   "ponto_id": "PU08",
+   "bairro": "Papanduva",
+   "lat": -25.1845,
+   "lon": -49.31898,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Capela N. Srª de Lourdes",
+   "ponto_id": "PU09",
+   "bairro": "Papanduva",
+   "lat": -25.18018,
+   "lon": -49.31619,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Centro de Reabilitação",
+   "ponto_id": "PU10",
+   "bairro": "N. Srª de Fátima",
+   "lat": -25.18016,
+   "lon": -49.31325,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "UBS Nossa Senhora de Fátima",
+   "ponto_id": "PU11",
+   "bairro": "N. Srª de Fátima",
+   "lat": -25.17227,
+   "lon": -49.31631,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "UBS Papanduva",
+   "ponto_id": "PU12",
+   "bairro": "Vila Abrão",
+   "lat": -25.1803,
+   "lon": -49.31918,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "CAIC",
+   "ponto_id": "PU13",
+   "bairro": "Madre",
+   "lat": -25.16805,
+   "lon": -49.31021,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "CMEI Jocimeri",
+   "ponto_id": "PU14",
+   "bairro": "São Pedro",
+   "lat": -25.17048,
+   "lon": -49.31473,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "UBS da Família",
+   "ponto_id": "PU15",
+   "bairro": "Vila Velha",
+   "lat": -25.18364,
+   "lon": -49.3108,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "UBS Albarana",
+   "ponto_id": "PU16",
+   "bairro": "Albarana",
+   "lat": -25.18482,
+   "lon": -49.30087,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Col. Est. Shirlene de Souza Rocha",
+   "ponto_id": "PU17",
+   "bairro": "Vila Buava",
+   "lat": -25.19097,
+   "lon": -49.30262,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Supermercado Trevo",
+   "ponto_id": "PU18",
+   "bairro": "Pedro",
+   "lat": -25.19139,
+   "lon": -49.30783,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Junta Militar do Paraná",
+   "ponto_id": "PU19",
+   "bairro": "Nodari I",
+   "lat": -25.19386,
+   "lon": -49.31202,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Assembleia de Deus Vila Nodari",
+   "ponto_id": "PU20",
+   "bairro": "Nodari I",
+   "lat": -25.19601,
+   "lon": -49.29947,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Assembleia de Deus Vila Artigas",
+   "ponto_id": "PU21",
+   "bairro": "Nodari II",
+   "lat": -25.20267,
+   "lon": -49.30605,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "UBS Santaria",
+   "ponto_id": "PU22",
+   "bairro": "Santaria",
+   "lat": -25.21427,
+   "lon": -49.30411,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "CDM",
+   "ponto_id": "PU23",
+   "bairro": "Vila Ricarda",
+   "lat": -25.19976,
+   "lon": -49.31449,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Esc. Mun. Benjamin Constant",
+   "ponto_id": "PU24",
+   "bairro": "Tacaniça dos Falcões",
+   "lat": -25.20547,
+   "lon": -49.32455,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "CCB — Central",
+   "ponto_id": "PU25",
+   "bairro": "Jardim dos Minérios",
+   "lat": -25.18605,
+   "lon": -49.32048,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Agroshopping",
+   "ponto_id": "PU26",
+   "bairro": "Mina Saiva",
+   "lat": -25.18452,
+   "lon": -49.32035,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "CRAS",
+   "ponto_id": "PU27",
+   "bairro": "São Luiz",
+   "lat": -25.19421,
+   "lon": -49.31613,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Shopping Cardoso",
+   "ponto_id": "PU28",
+   "bairro": "Johnson",
+   "lat": -25.19026,
+   "lon": -49.31881,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Supermercado Rio Verde",
+   "ponto_id": "PU29",
+   "bairro": "Jardim Garcia",
+   "lat": -25.18717,
+   "lon": -49.3166,
+   "tipo": "urbano"
+  },
+  {
+   "nome": "Esc. Mun. do Campo José Ribeiro de Cristo",
+   "ponto_id": "PR01",
+   "bairro": "Santa Cruz",
+   "lat": -25.16363,
+   "lon": -49.39911,
+   "tipo": "rural"
+  },
+  {
+   "nome": "UBS Bromado",
+   "ponto_id": "PR02",
+   "bairro": "Bromado",
+   "lat": -25.08428,
+   "lon": -49.37444,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Mercado Jacson",
+   "ponto_id": "PR03",
+   "bairro": "Curriola Francas",
+   "lat": -25.0149,
+   "lon": -49.4618,
+   "tipo": "rural"
+  },
+  {
+   "nome": "UBS Açungui",
+   "ponto_id": "PR04",
+   "bairro": "Açungui",
+   "lat": -24.98763,
+   "lon": -49.48135,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Ponto de Apoio",
+   "ponto_id": "PR05",
+   "bairro": "Jacaré",
+   "lat": -24.92995,
+   "lon": -49.48804,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Centro de Convivência",
+   "ponto_id": "PR06",
+   "bairro": "Ribeira",
+   "lat": -24.90797,
+   "lon": -49.44326,
+   "tipo": "rural"
+  },
+  {
+   "nome": "US Pouso Bonito",
+   "ponto_id": "PR07",
+   "bairro": "Darcy Leonel",
+   "lat": -24.9437,
+   "lon": -49.42215,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Esc. Mun. do Campo Maria da Luz Ramos da Silva",
+   "ponto_id": "PR08",
+   "bairro": "Pinta",
+   "lat": -25.01673,
+   "lon": -49.34621,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Esc. Mun. do Campo Durval Teixeira",
+   "ponto_id": "PR09",
+   "bairro": "Oristela",
+   "lat": -25.17692,
+   "lon": -49.28589,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Esc. Mun. do Campo Altevir Cecílio de Souza",
+   "ponto_id": "PR10",
+   "bairro": "Santana",
+   "lat": -25.11891,
+   "lon": -49.20782,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Esc. Mun. do Campo Luiz Segundo Fiorese",
+   "ponto_id": "PR11",
+   "bairro": "Mina de Ferro",
+   "lat": -25.20439,
+   "lon": -49.28743,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Esc. Mun. do Campo Valfrido Lazarini",
+   "ponto_id": "PR12",
+   "bairro": "Pernambuco",
+   "lat": -25.19738,
+   "lon": -49.2642,
+   "tipo": "rural"
+  },
+  {
+   "nome": "Capela do Divino Espírito Santo",
+   "ponto_id": "PR13",
+   "bairro": "Campina dos Pintos",
+   "lat": -25.21897,
+   "lon": -49.24652,
+   "tipo": "rural"
+  }
+ ]
+}

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="theme-color" content="#0b5c3f">
+<meta name="color-scheme" content="light">
+<title>Pesquisa OD — Rio Branco do Sul</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icons/icon-192.png">
+<link rel="apple-touch-icon" href="./icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="./vendor/leaflet.css">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<!-- ---------------------------------------------------- TELA 0: cabeçalho fixo -->
+<header id="hdr" hidden>
+  <div class="hdr-l">
+    <span id="h-pesq" class="pill">P0—</span>
+    <span id="h-ponto" class="ponto">— selecione o ponto —</span>
+  </div>
+  <div class="hdr-r">
+    <span id="h-cont" class="cont">0/0 hoje</span>
+    <button id="h-sync" class="sync" type="button" title="Sincronizar agora">⟳ <span id="h-fila">0</span></button>
+    <button id="h-menu" class="menu" type="button" aria-label="Menu">☰</button>
+  </div>
+</header>
+
+<main id="main" aria-live="polite"></main>
+
+<footer id="rodape">
+  <span id="rod-atrib">Dados de vias © OpenStreetMap contributors, ODbL.</span>
+  <span id="rod-ident">Toposcan · Pesquisa do Plano de Mobilidade — prefeitura ciente.</span>
+</footer>
+
+<div id="toast" role="status" hidden></div>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-box">
+    <h2 id="modal-t"></h2>
+    <div id="modal-c"></div>
+    <div id="modal-a" class="modal-acoes"></div>
+  </div>
+</div>
+
+<noscript><p style="padding:2rem;font:18px/1.5 system-ui">Este aplicativo precisa de JavaScript.</p></noscript>
+
+<script src="./vendor/leaflet.js"></script>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+{
+ "schema_version": "0.9",
+ "titulo": "Pesquisa Origem-Destino — Rio Branco do Sul",
+ "subtitulo": "Plano de Mobilidade Urbana",
+ "atualizado_em": "2026-08-21",
+ "regras_ui": {
+  "fonte_base_px": 18,
+  "alvo_min_px": 48,
+  "tema": "claro_forcado",
+  "avanco_automatico": true,
+  "wake_lock": true
+ },
+ "periodo_cortes": [
+  { "id": "manha", "rotulo": "Manhã", "de": "00:00", "ate": "10:30" },
+  { "id": "meio_dia", "rotulo": "Meio-dia", "de": "10:30", "ate": "13:30" },
+  { "id": "tarde", "rotulo": "Tarde", "de": "13:30", "ate": "15:30" },
+  { "id": "fim_de_dia", "rotulo": "Fim de dia", "de": "15:30", "ate": "23:59" }
+ ],
+ "escala_origem_nivel": [
+  { "nivel": 1, "significado": "Coordenada GPS registrada com autorização", "precisao_m": 10 },
+  { "nivel": 2, "significado": "Rua + número + bairro", "precisao_m": 30 },
+  { "nivel": 3, "significado": "Rua + bairro, sem número", "precisao_m": 150 },
+  { "nivel": 4, "significado": "Ponto de referência / POI nomeado", "precisao_m": 120 },
+  { "nivel": 5, "significado": "Só bairro/localidade", "precisao_m": 800 },
+  { "nivel": 6, "significado": "Só município", "precisao_m": 5000 }
+ ],
+ "accuracy_escada": [
+  { "ate_m": 50, "cor": "verde", "acao": "aceita" },
+  { "ate_m": 100, "cor": "amarelo", "acao": "aceita" },
+  { "ate_m": 500, "cor": "laranja", "acao": "confirma" },
+  { "ate_m": 999999, "cor": "vermelho", "acao": "justifica" }
+ ],
+ "telas": [
+  {
+   "n": 1,
+   "id": "abordagem",
+   "titulo": "Abordagem",
+   "tipo": "abordagem",
+   "script": [
+    "Bom dia, tudo bem? Meu nome é [NOME], sou da equipe de pesquisa do Plano de Mobilidade de Rio Branco do Sul — a prefeitura está ciente.",
+    "São cerca de três minutos, umas oito perguntas rápidas sobre a viagem que o(a) senhor(a) está fazendo agora: de onde saiu, para onde vai e como está indo.",
+    "Não pergunto seu nome nem nada pessoal — é só para entender por onde as pessoas se deslocam e melhorar o transporte da cidade.",
+    "Posso fazer?"
+   ],
+   "carimba_ts_inicio": true,
+   "campo": "consentimento_verbal",
+   "acoes": [
+    { "id": "aceitou", "rotulo": "Aceitou", "estilo": "ok" },
+    { "id": "recusa", "rotulo": "Recusa", "estilo": "recusa" }
+   ]
+  },
+  {
+   "n": 2,
+   "id": "origem",
+   "titulo": "De onde você está vindo?",
+   "tipo": "cascata",
+   "prefixo": "origem",
+   "obrigatorio": true
+  },
+  {
+   "n": 3,
+   "id": "destino",
+   "titulo": "Para onde está indo?",
+   "tipo": "cascata",
+   "prefixo": "destino",
+   "obrigatorio": true,
+   "atalhos": [
+    { "id": "copiar_origem", "rotulo": "Copiar origem" },
+    { "id": "minha_casa", "rotulo": "É a minha casa" }
+   ]
+  },
+  {
+   "n": 4,
+   "id": "modal",
+   "titulo": "Como está indo?",
+   "tipo": "chips",
+   "campo": "modal",
+   "colunas": 2,
+   "obrigatorio": true,
+   "texto_livre_proibido": true,
+   "opcoes": [
+    { "v": "a_pe", "r": "A pé", "i": "🚶" },
+    { "v": "bicicleta", "r": "Bicicleta", "i": "🚲" },
+    { "v": "moto", "r": "Moto", "i": "🏍️" },
+    { "v": "carro_motorista", "r": "Carro (dirigindo)", "i": "🚗" },
+    { "v": "carro_carona", "r": "Carro (carona)", "i": "🚙" },
+    { "v": "onibus_urbano", "r": "Ônibus urbano", "i": "🚌" },
+    { "v": "onibus_intermunicipal", "r": "Ônibus intermunicipal", "i": "🚍" },
+    { "v": "onibus_escolar", "r": "Ônibus escolar", "i": "🚐" },
+    { "v": "van_lotacao", "r": "Van / lotação", "i": "🚐" },
+    { "v": "taxi_app", "r": "Táxi / app", "i": "🚕" },
+    { "v": "caminhao_utilitario", "r": "Caminhão / utilitário", "i": "🚚" },
+    { "v": "outro_modal", "r": "Outro", "i": "❓" }
+   ]
+  },
+  {
+   "n": 5,
+   "id": "motivo",
+   "titulo": "Por que está fazendo esta viagem?",
+   "tipo": "chips",
+   "campo": "motivo",
+   "colunas": 2,
+   "obrigatorio": true,
+   "texto_livre_proibido": true,
+   "opcoes": [
+    { "v": "trabalho", "r": "Trabalho", "i": "💼" },
+    { "v": "estudo", "r": "Estudo", "i": "📚" },
+    { "v": "saude", "r": "Saúde", "i": "🏥" },
+    { "v": "compras", "r": "Compras", "i": "🛒" },
+    { "v": "servicos", "r": "Serviços / banco", "i": "🏦" },
+    { "v": "lazer", "r": "Lazer / visita", "i": "⚽" },
+    { "v": "religiao", "r": "Religião", "i": "⛪" },
+    { "v": "retorno_casa", "r": "Voltando pra casa", "i": "🏠" }
+   ]
+  },
+  {
+   "n": 6,
+   "id": "tempo",
+   "titulo": "Quanto tempo leva essa viagem?",
+   "tipo": "chips",
+   "campo": "tempo_viagem_min",
+   "colunas": 3,
+   "obrigatorio": true,
+   "numerico": true,
+   "permite_outro": true,
+   "outro_rotulo": "Outro (min)",
+   "min": 1,
+   "max": 600,
+   "opcoes": [
+    { "v": 5, "r": "5 min" },
+    { "v": 10, "r": "10 min" },
+    { "v": 15, "r": "15 min" },
+    { "v": 20, "r": "20 min" },
+    { "v": 30, "r": "30 min" },
+    { "v": 45, "r": "45 min" },
+    { "v": 60, "r": "1 h" },
+    { "v": 90, "r": "1 h 30" },
+    { "v": 120, "r": "2 h" }
+   ]
+  },
+  {
+   "n": 7,
+   "id": "trecho",
+   "titulo": "Baldeação",
+   "tipo": "trecho",
+   "condicional": "ponto.transbordo === true",
+   "obrigatorio": false,
+   "campos": [
+    { "campo": "trecho_antes", "rotulo": "Como chegou até aqui?", "usa_opcoes_de": "modal" },
+    { "campo": "trecho_depois", "rotulo": "Como segue daqui?", "usa_opcoes_de": "modal" }
+   ]
+  },
+  {
+   "n": 8,
+   "id": "perfil",
+   "titulo": "Perfil",
+   "tipo": "grupo_chips",
+   "obrigatorio": true,
+   "grupos": [
+    {
+     "campo": "sexo",
+     "rotulo": "Sexo (observado — não perguntar)",
+     "colunas": 4,
+     "opcoes": [
+      { "v": "F", "r": "F" },
+      { "v": "M", "r": "M" },
+      { "v": "outro", "r": "Outro" },
+      { "v": "nao_informado", "r": "N/I" }
+     ]
+    },
+    {
+     "campo": "faixa_etaria",
+     "rotulo": "Faixa etária",
+     "colunas": 3,
+     "opcoes": [
+      { "v": "ate_17", "r": "até 17" },
+      { "v": "18_24", "r": "18–24" },
+      { "v": "25_34", "r": "25–34" },
+      { "v": "35_44", "r": "35–44" },
+      { "v": "45_59", "r": "45–59" },
+      { "v": "60_mais", "r": "60+" },
+      { "v": "nao_informado", "r": "Não informado" }
+     ]
+    },
+    {
+     "campo": "escolaridade",
+     "rotulo": "Escolaridade",
+     "colunas": 2,
+     "opcoes": [
+      { "v": "sem_instrucao", "r": "Sem instrução" },
+      { "v": "fund_incompleto", "r": "Fund. incompleto" },
+      { "v": "fund_completo", "r": "Fund. completo" },
+      { "v": "medio_incompleto", "r": "Médio incompleto" },
+      { "v": "medio_completo", "r": "Médio completo" },
+      { "v": "sup_incompleto", "r": "Superior incompleto" },
+      { "v": "sup_completo", "r": "Superior completo" },
+      { "v": "pos_graduacao", "r": "Pós-graduação" },
+      { "v": "nao_informado", "r": "Não informado" }
+     ]
+    }
+   ],
+   "condicional_consentimento": {
+    "quando": "faixa_etaria === 'ate_17'",
+    "campo": "consentimento_responsavel",
+    "rotulo": "Responsável presente autorizou (V12 — obrigatório)"
+   }
+  },
+  {
+   "n": 9,
+   "id": "salvar",
+   "titulo": "Conferir e salvar",
+   "tipo": "resumo",
+   "linhas": ["ponto", "origem", "destino", "modal", "motivo", "perfil"],
+   "opcionais": [
+    {
+     "campo": "frequencia",
+     "rotulo": "Frequência desta viagem",
+     "colunas": 3,
+     "opcoes": [
+      { "v": "diaria", "r": "Diária" },
+      { "v": "3_4_semana", "r": "3–4×/sem" },
+      { "v": "1_2_semana", "r": "1–2×/sem" },
+      { "v": "quinzenal", "r": "Quinzenal" },
+      { "v": "mensal", "r": "Mensal" },
+      { "v": "esporadica", "r": "Esporádica" }
+     ]
+    },
+    {
+     "campo": "n_acompanhantes",
+     "rotulo": "Acompanhantes",
+     "colunas": 5,
+     "numerico": true,
+     "opcoes": [
+      { "v": 0, "r": "0" },
+      { "v": 1, "r": "1" },
+      { "v": 2, "r": "2" },
+      { "v": 3, "r": "3" },
+      { "v": 4, "r": "4+" }
+     ]
+    }
+   ],
+   "acao": { "id": "salvar", "rotulo": "Salvar e próxima" }
+  }
+ ],
+ "cascata": {
+  "botoes": [
+   { "id": "gps_perto", "rotulo": "Estou vindo daqui perto", "rotulo_destino": "Vou aqui perto", "nivel": 1, "metodo": "gps_entrevistado", "precisao_m": 10, "i": "📍" },
+   { "id": "buscar_via", "rotulo": "Buscar rua…", "nivel": 3, "metodo": "autocomplete_via", "precisao_m": 150, "i": "🔎" },
+   { "id": "poi", "rotulo": "Ponto de referência", "nivel": 4, "metodo": "poi", "precisao_m": 120, "i": "🏫" },
+   { "id": "mapa", "rotulo": "Marcar no mapa", "nivel": 1, "metodo": "pin_mapa", "precisao_m": 10, "i": "🗺️" },
+   { "id": "outro_municipio", "rotulo": "Outro município", "nivel": 6, "metodo": "texto_livre", "precisao_m": 5000, "i": "🛣️" }
+  ],
+  "com_numero_nivel": 2,
+  "com_numero_precisao_m": 30,
+  "so_bairro_nivel": 5,
+  "so_bairro_precisao_m": 800,
+  "autocomplete": { "debounce_ms": 120, "top": 8, "min_chars": 2 }
+ },
+ "recusa": {
+  "titulo": "Motivo da recusa",
+  "campo": "motivo",
+  "colunas": 2,
+  "opcoes": [
+   { "v": "sem_tempo", "r": "Sem tempo" },
+   { "v": "nao_quis", "r": "Não quis" },
+   { "v": "desconfianca", "r": "Desconfiança" },
+   { "v": "ja_respondeu", "r": "Já respondeu" },
+   { "v": "idioma_outro", "r": "Outro idioma" },
+   { "v": "abordagem_interrompida", "r": "Interrompida" }
+  ],
+  "aprox": [
+   { "campo": "sexo_aprox", "rotulo": "Sexo aprox.", "opcoes": [{ "v": "F", "r": "F" }, { "v": "M", "r": "M" }, { "v": "nao_informado", "r": "N/I" }] },
+   { "campo": "faixa_aprox", "rotulo": "Faixa aprox.", "opcoes": [{ "v": "jovem", "r": "Jovem" }, { "v": "adulto", "r": "Adulto" }, { "v": "idoso", "r": "Idoso" }, { "v": "nao_informado", "r": "N/I" }] }
+  ]
+ },
+ "validacoes": [
+  { "id": "V01", "campo": "consentimento_verbal", "regra": "igual_true", "acao": "bloqueia", "msg": "Sem consentimento verbal não se salva a entrevista." },
+  { "id": "V02", "campo": "ponto_id", "regra": "em_pontos_ativos", "acao": "bloqueia", "msg": "Ponto inválido ou inativo." },
+  { "id": "V03", "campos": ["modal", "motivo", "tempo_viagem_min", "sexo", "faixa_etaria", "escolaridade"], "regra": "preenchidos", "aceita_nao_informado": ["sexo", "faixa_etaria", "escolaridade"], "acao": "bloqueia", "msg": "Faltam respostas obrigatórias." },
+  { "id": "V04", "campo": "tempo_viagem_min", "regra": "intervalo", "min": 1, "max": 600, "acao": "bloqueia", "msg": "Tempo de viagem deve ficar entre 1 e 600 minutos." },
+  { "id": "V05", "campos": ["origem_nivel", "destino_nivel"], "regra": "menor_igual", "valor": 6, "acao": "bloqueia", "msg": "Origem e destino precisam de algum dado (nível 1 a 6)." },
+  { "id": "V06", "campo": "abordagem_accuracy_m", "regra": "escada_accuracy", "acao": "escalonada", "msg": "Precisão do GPS baixa." },
+  { "id": "V07", "campo": "abordagem_gps_ts", "regra": "idade_max_s", "valor": 120, "acao": "pede_fix", "msg": "O fix de GPS está velho (>120 s). Pedindo novo." },
+  { "id": "V08", "regra": "origem_igual_destino", "acao": "confirma", "msg": "Origem e destino são o mesmo endereço. Tem certeza?" },
+  { "id": "V09", "campo": "duracao_s", "regra": "minimo", "valor": 45, "acao": "confirma", "msg": "Entrevista com menos de 45 s. Confirma que foi real?" },
+  { "id": "V10", "campos": ["origem_numero", "destino_numero"], "regra": "regex", "padrao": "^(\\d{1,5}|s/n|S/N)$", "permite_vazio": true, "acao": "bloqueia", "msg": "Número deve ser 1 a 5 dígitos ou s/n." },
+  { "id": "V11", "campo": "uuid", "regra": "unico_local", "acao": "descarta_silencioso", "msg": "" },
+  { "id": "V12", "campo": "consentimento_responsavel", "regra": "exigido_se", "quando_campo": "faixa_etaria", "quando_valor": "ate_17", "acao": "bloqueia", "msg": "Menor de 18: exige consentimento do responsável presente (V12)." }
+ ],
+ "colunas_respostas": [
+  "uuid", "schema_version", "app_version", "pesquisador_id", "device_id",
+  "ts_inicio", "ts_fim", "duracao_s", "ts_sync", "fila_espera_min",
+  "ponto_id", "ponto_nome", "ponto_tipo",
+  "abordagem_lat", "abordagem_lon", "abordagem_accuracy_m", "abordagem_gps_ts", "gps_fonte", "distancia_ao_ponto_m",
+  "horario_abordagem", "periodo", "modal", "motivo", "tempo_viagem_min",
+  "trecho_antes", "trecho_depois", "frequencia", "n_acompanhantes",
+  "origem_nivel", "origem_municipio", "origem_bairro", "origem_logradouro", "origem_numero",
+  "origem_referencia", "origem_lat", "origem_lon", "origem_precisao_m", "origem_metodo",
+  "origem_zona", "origem_zona_fina",
+  "destino_nivel", "destino_municipio", "destino_bairro", "destino_logradouro", "destino_numero",
+  "destino_referencia", "destino_lat", "destino_lon", "destino_precisao_m", "destino_metodo",
+  "destino_zona", "destino_zona_fina",
+  "sexo", "faixa_etaria", "idade", "escolaridade", "consentimento_responsavel",
+  "consentimento_verbal", "recusa_localizacao", "obs_pesquisador",
+  "qc_flags", "qc_status", "revisado_por", "revisado_em"
+ ],
+ "colunas_recusas": ["uuid", "ts", "pesquisador_id", "ponto_id", "motivo", "sexo_aprox", "faixa_aprox", "ts_sync", "app_version"],
+ "rodape": {
+  "atribuicao": "Dados de vias © OpenStreetMap contributors, ODbL.",
+  "identificacao": "Toposcan · Pesquisa do Plano de Mobilidade — prefeitura ciente."
+ }
+}

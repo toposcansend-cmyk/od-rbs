@@ -1,0 +1,258 @@
+{
+ "versao": "1.0",
+ "municipio_base": "Rio Branco do Sul",
+ "bairros_urbanos": [
+  {
+   "nome": "Albarana",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18482,
+   "lon": -49.30087
+  },
+  {
+   "nome": "Centro",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.190708,
+   "lon": -49.313362
+  },
+  {
+   "nome": "Jardim Garcia",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18717,
+   "lon": -49.3166
+  },
+  {
+   "nome": "Jardim dos Minérios",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18605,
+   "lon": -49.32048
+  },
+  {
+   "nome": "Johnson",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19026,
+   "lon": -49.31881
+  },
+  {
+   "nome": "Madre",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.16805,
+   "lon": -49.31021
+  },
+  {
+   "nome": "Mina Saiva",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18452,
+   "lon": -49.32035
+  },
+  {
+   "nome": "N. Srª de Fátima",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.176215,
+   "lon": -49.31478
+  },
+  {
+   "nome": "Natânia",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18433,
+   "lon": -49.31224
+  },
+  {
+   "nome": "Nodari I",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.194935,
+   "lon": -49.305745
+  },
+  {
+   "nome": "Nodari II",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.20267,
+   "lon": -49.30605
+  },
+  {
+   "nome": "Papanduva",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18234,
+   "lon": -49.317585
+  },
+  {
+   "nome": "Pedro",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19139,
+   "lon": -49.30783
+  },
+  {
+   "nome": "Santaria",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.21427,
+   "lon": -49.30411
+  },
+  {
+   "nome": "São Luiz",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19421,
+   "lon": -49.31613
+  },
+  {
+   "nome": "São Pedro",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.17048,
+   "lon": -49.31473
+  },
+  {
+   "nome": "Tacaniça dos Falcões",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.20547,
+   "lon": -49.32455
+  },
+  {
+   "nome": "Vila Abrão",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.1803,
+   "lon": -49.31918
+  },
+  {
+   "nome": "Vila Buava",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19097,
+   "lon": -49.30262
+  },
+  {
+   "nome": "Vila Ricarda",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19976,
+   "lon": -49.31449
+  },
+  {
+   "nome": "Vila Velha",
+   "tipo": "bairro",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.18364,
+   "lon": -49.3108
+  }
+ ],
+ "localidades_rurais": [
+  {
+   "nome": "Açungui",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.98763,
+   "lon": -49.48135
+  },
+  {
+   "nome": "Bromado",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.08428,
+   "lon": -49.37444
+  },
+  {
+   "nome": "Campina dos Pintos",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.21897,
+   "lon": -49.24652
+  },
+  {
+   "nome": "Curriola Francas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.0149,
+   "lon": -49.4618
+  },
+  {
+   "nome": "Darcy Leonel",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.9437,
+   "lon": -49.42215
+  },
+  {
+   "nome": "Jacaré",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.92995,
+   "lon": -49.48804
+  },
+  {
+   "nome": "Mina de Ferro",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.20439,
+   "lon": -49.28743
+  },
+  {
+   "nome": "Oristela",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.17692,
+   "lon": -49.28589
+  },
+  {
+   "nome": "Pernambuco",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19738,
+   "lon": -49.2642
+  },
+  {
+   "nome": "Pinta",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.01673,
+   "lon": -49.34621
+  },
+  {
+   "nome": "Ribeira",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.90797,
+   "lon": -49.44326
+  },
+  {
+   "nome": "Santa Cruz",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.16363,
+   "lon": -49.39911
+  },
+  {
+   "nome": "Santana",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.11891,
+   "lon": -49.20782
+  }
+ ],
+ "municipios_vizinhos": [
+  "Curitiba",
+  "Almirante Tamandaré",
+  "Colombo",
+  "Bocaiúva do Sul",
+  "Cerro Azul",
+  "Itaperuçu",
+  "Campo Magro",
+  "Adrianópolis",
+  "Doutor Ulysses",
+  "Tunas do Paraná"
+ ]
+}

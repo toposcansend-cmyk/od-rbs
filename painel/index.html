@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Painel — Pesquisa OD Rio Branco do Sul</title>
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="../style.css">
+<style>
+  body { background: var(--fundo-2); }
+  #main { max-width: 900px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: .7rem; margin: .8rem 0 1.2rem; }
+  .kpi { background: #fff; border: 2px solid var(--linha); border-radius: 14px; padding: .8rem .9rem; }
+  .kpi b { display: block; font-size: 30px; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--verde); }
+  .kpi span { display: block; font-size: 13.5px; color: var(--cinza); text-transform: uppercase;
+              letter-spacing: .03em; font-weight: 700; margin-top: .15rem; }
+  .kpi small { display: block; font-size: 13px; color: var(--cinza); margin-top: .25rem; }
+  .barra { height: 9px; border-radius: 5px; background: var(--linha); overflow: hidden; margin-top: .45rem; }
+  .barra i { display: block; height: 100%; background: var(--verde); }
+  .card { background: #fff; border: 2px solid var(--linha); border-radius: 14px; padding: .3rem .9rem .9rem; margin-bottom: 1rem; }
+  .sem { width: 12px; height: 12px; border-radius: 50%; display: inline-block; vertical-align: -1px; }
+  .sem.r { background: #dc2626; } .sem.a { background: #eab308; } .sem.v { background: #16a34a; }
+  .lgpd { font-size: 13px; color: var(--cinza); border-left: 4px solid var(--verde); padding-left: .7rem; margin: 1rem 0; }
+</style>
+</head>
+<body>
+<header id="hdr" style="position:static">
+  <div class="hdr-l"><span class="pill">PAINEL</span><span class="ponto">Pesquisa OD — Rio Branco do Sul</span></div>
+  <div class="hdr-r"><button id="atualizar" type="button">⟳</button></div>
+</header>
+
+<main id="main">
+  <div id="conteudo"><p class="dica">Carregando…</p></div>
+  <p class="lgpd">Este painel mostra <b>somente agregados por ponto</b>. Nenhuma linha individual,
+  endereço ou coordenada de residência sai por aqui (§7.3, trava 4).</p>
+</main>
+
+<footer id="rodape">
+  <span>Dados de vias © OpenStreetMap contributors, ODbL.</span>
+  <span>Toposcan · Pesquisa do Plano de Mobilidade — prefeitura ciente.</span>
+</footer>
+
+<script type="module">
+import { API_URL } from '../config.js';
+
+const $ = (id) => document.getElementById(id);
+const q = new URLSearchParams(location.search);
+const token = q.get('token') || '';
+const num = (n) => (n ?? 0).toLocaleString('pt-BR');
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+async function carregar() {
+  const c = $('conteudo');
+  if (!API_URL) { c.innerHTML = '<div class="aviso erro">API_URL não configurada neste build (ver DEPLOY.md).</div>'; return; }
+  if (!token) { c.innerHTML = '<div class="aviso erro">Falta o token de leitura na URL: <code>?token=…</code></div>'; return; }
+  c.innerHTML = '<p class="dica">Carregando…</p>';
+  try {
+    const r = await fetch(`${API_URL}?action=painel&token=${encodeURIComponent(token)}`, { cache: 'no-store' });
+    const j = JSON.parse(await r.text());
+    if (!j.ok) { c.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Acesso negado.')}</div>`; return; }
+    pintar(j);
+  } catch (e) {
+    c.innerHTML = `<div class="aviso erro">Falha ao consultar: ${esc(e.message)}</div>`;
+  }
+}
+
+function pintar(j) {
+  const t = j.totais || {};
+  const linhas = (j.pontos || []).slice().sort((a, b) => {
+    const or = (x) => x.feito < x.meta_piso ? 0 : x.feito < x.meta ? 1 : 2;
+    return or(a) - or(b) || (a.feito / (a.meta || 1)) - (b.feito / (b.meta || 1));
+  });
+  const abaixoPiso = linhas.filter((p) => p.feito < p.meta_piso).length;
+  const zerados = linhas.filter((p) => p.feito === 0).length;
+
+  $('conteudo').innerHTML = `
+  <div class="kpis">
+    <div class="kpi"><b>${num(t.total)} / ${num(t.meta)}</b><span>Total × meta</span>
+      <div class="barra"><i style="width:${pct(t.total, t.meta)}%"></i></div>
+      <small>faltam ${num((t.meta || 0) - (t.total || 0))} · ${pct(t.total, t.meta)}%</small></div>
+    <div class="kpi"><b>${num(t.urbano)} / ${num(t.meta_urbano)}</b><span>Urbano</span>
+      <div class="barra"><i style="width:${pct(t.urbano, t.meta_urbano)}%"></i></div></div>
+    <div class="kpi"><b>${num(t.rural)} / ${num(t.meta_rural)}</b><span>Rural</span>
+      <div class="barra"><i style="width:${pct(t.rural, t.meta_rural)}%"></i></div></div>
+    <div class="kpi"><b>${num(t.hoje)}</b><span>Hoje</span><small>${esc(j.data_hoje || '')}</small></div>
+    <div class="kpi"><b>${abaixoPiso}</b><span>Abaixo do piso</span><small>de ${linhas.length} pontos · ${zerados} zerado(s)</small></div>
+    <div class="kpi"><b>${t.recusa_pct ?? '—'}%</b><span>Taxa de recusa</span><small>${num(t.recusas)} recusa(s)</small></div>
+  </div>
+
+  <div class="card"><h3>Por pesquisador (hoje)</h3><div class="rolar"><table class="t">
+    <thead><tr><th>Id</th><th>Nome</th><th class="n">Hoje</th><th class="n">Total</th><th>Última sync</th><th class="n">Fila</th></tr></thead>
+    <tbody>${(j.pesquisadores || []).map((p) => `<tr>
+      <td>${esc(p.pesq_id)}</td><td>${esc(p.nome)}</td>
+      <td class="n">${num(p.hoje)}</td><td class="n">${num(p.total)}</td>
+      <td>${esc(p.ultimo_sync || '—')}</td><td class="n">${num(p.fila)}</td></tr>`).join('')
+      || '<tr><td colspan="6" class="dica">sem dados</td></tr>'}</tbody></table></div></div>
+
+  <div class="card"><h3>Por ponto — pior primeiro</h3><div class="rolar"><table class="t">
+    <thead><tr><th></th><th>Ponto</th><th>Local</th><th>Tipo</th><th class="n">Feito</th><th class="n">Meta</th><th class="n">%</th></tr></thead>
+    <tbody>${linhas.map((p) => {
+      const s = p.feito < p.meta_piso ? 'r' : p.feito < p.meta ? 'a' : 'v';
+      return `<tr><td><span class="sem ${s}"></span></td>
+        <td><b>${esc(p.ponto_id)}</b> ${esc(p.nome)}</td><td>${esc(p.bairro)}</td>
+        <td>${esc(p.tipo)}</td><td class="n">${num(p.feito)}</td>
+        <td class="n">${num(p.meta)}</td><td class="n">${pct(p.feito, p.meta)}%</td></tr>`;
+    }).join('') || '<tr><td colspan="7" class="dica">sem dados</td></tr>'}</tbody></table></div></div>
+
+  <div class="card"><h3>Qualidade</h3><div class="rolar"><table class="t"><tbody>
+    <tr><td>GPS ≤ 50 m</td><td class="n">${t.gps50_pct ?? '—'}%</td></tr>
+    <tr><td>origem_nivel ≤ 3 <small>(régua: ≥70%)</small></td><td class="n">${t.nivel3_pct ?? '—'}%</td></tr>
+    <tr><td>Duração mediana</td><td class="n">${t.duracao_mediana_s ? Math.floor(t.duracao_mediana_s / 60) + 'm' + String(t.duracao_mediana_s % 60).padStart(2, '0') + 's' : '—'}</td></tr>
+    <tr><td>Flags de QC abertas</td><td class="n">${num(t.flags)}</td></tr>
+  </tbody></table></div></div>
+
+  <p class="dica">Atualizado em ${esc(j.gerado_em || '')} · schema ${esc(j.schema_version || '')}</p>`;
+}
+
+$('atualizar').onclick = carregar;
+carregar();
+setInterval(carregar, 120000);
+</script>
+</body>
+</html>
