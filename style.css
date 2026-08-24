@@ -134,6 +134,19 @@ button:active, .btn:active { transform: scale(.985); }
 .tag { font-size: 13px; font-weight: 700; padding: .05rem .35rem; border-radius: 5px;
        background: var(--verde-claro); color: var(--verde); }
 
+/* ------------------------------------------------------------ PIN: teclado numérico
+   Teclado próprio de propósito: o do sistema abre em modo texto, cobre metade da tela
+   e sugere autocorreção. Aqui são 12 alvos grandes, e nada mais. */
+#l-pin { margin: .2rem 0 1rem; }
+#l-pin h3 { margin: .2rem 0 .5rem; }
+.pin-dots { display: flex; gap: .8rem; justify-content: center; margin: .3rem 0 .9rem; }
+.pin-dots i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--linha);
+              background: var(--fundo); }
+.pin-dots i.on { background: var(--verde); border-color: var(--verde); }
+.teclado { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; }
+.tecla { min-height: 66px; font-size: 27px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tecla.apaga { font-size: 22px; background: var(--fundo-2); }
+
 /* ------------------------------------------------------------ instalar na tela inicial */
 .passos { margin: .2rem 0 .4rem; padding-left: 1.4rem; font-size: 18px; line-height: 1.5; }
 .passos li { margin-bottom: .55rem; }

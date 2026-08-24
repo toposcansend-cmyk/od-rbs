@@ -423,14 +423,37 @@ function vLogin() {
   el('hdr').hidden = true;
   main().innerHTML = `
     <h1>Pesquisa Origem-Destino<br>Rio Branco do Sul</h1>
-    <p class="dica">Toque no seu nome e depois em <b>Começar</b>. É só na primeira vez —
-    depois o aplicativo funciona até sem internet.</p>
+    <p class="dica">Toque no seu nome, digite seu <b>PIN de 4 números</b> e depois em
+    <b>Começar</b>. É só na primeira vez — depois o aplicativo funciona até sem internet.</p>
     ${blocoInstalar()}
     <div id="l-lista" class="lista-nomes"></div>
+    <div id="l-pin" hidden>
+      <h3 id="l-pin-t"></h3>
+      <div class="pin-dots" id="l-dots"><i></i><i></i><i></i><i></i></div>
+      <div class="teclado" id="l-tec"></div>
+    </div>
     <div class="acoes"><button id="l-ok" class="b-primario" disabled>Começar</button></div>
     <div id="l-msg"></div>
     <p class="dica" style="margin-top:1.2rem">Versão ${esc(APP_VERSION)} · schema ${esc(S.schema?.schema_version || '—')}</p>`;
   ligarInstalar();
+
+  /* Teclado NUMÉRICO próprio: o teclado do sistema abre no modo texto, come metade da tela
+     e ainda oferece autocorreção. Aqui são 12 alvos grandes e nada mais. */
+  let pin = '';
+  const dots = () => [...el('l-dots').children].forEach((d, i) =>
+    d.classList.toggle('on', i < pin.length));
+  const conferePin = () => { el('l-ok').disabled = pin.length !== 4; dots(); };
+  const tecla = (t, cls) => `<button type="button" class="tecla ${cls || ''}" data-k="${t}">${t}</button>`;
+  el('l-tec').innerHTML =
+    ['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((n) => tecla(n)).join('') +
+    tecla('⌫', 'apaga') + tecla('0') + '<span></span>';
+  el('l-tec').querySelectorAll('[data-k]').forEach((b) => b.onclick = () => {
+    const k = b.dataset.k;
+    if (k === '⌫') pin = pin.slice(0, -1);
+    else if (pin.length < 4) pin += k;
+    el('l-msg').innerHTML = '';
+    conferePin();
+  });
 
   const lista = el('l-lista'); let escolhido = '';
   /* o GESTOR vai para o FIM da lista e fica marcado: em campo, o toque errado no primeiro
@@ -446,7 +469,13 @@ function vLogin() {
     b.onclick = () => {
       escolhido = p.pesq_id;
       [...lista.children].forEach((x) => x.classList.remove('sel'));
-      b.classList.add('sel'); el('l-ok').disabled = false;
+      b.classList.add('sel');
+      pin = '';
+      el('l-pin').hidden = false;
+      el('l-pin-t').textContent = `PIN de ${p.nome.split(' ')[0]}`;
+      el('l-msg').innerHTML = '';
+      conferePin();
+      el('l-pin').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     };
     lista.appendChild(b);
   });
@@ -454,26 +483,23 @@ function vLogin() {
   el('l-ok').onclick = async () => {
     const msg = el('l-msg');
     if (!escolhido) { msg.innerHTML = '<div class="aviso erro">Toque no seu nome primeiro.</div>'; return; }
-    if (escolhido === GESTOR) {
-      const q = await modal({
-        titulo: 'Você é o COORDENADOR da equipe?',
-        corpo: '<p>Esta entrada é só do coordenador de campo. Se você é entrevistador, ' +
-               'volte e toque no <b>seu</b> nome.</p>',
-        acoes: [{ id: 'nao', rotulo: 'Voltar' }, { id: 'sim', rotulo: 'Sou o coordenador', estilo: 'b-primario' }],
-      });
-      if (q !== 'sim') return;
-    }
+    if (pin.length !== 4) { msg.innerHTML = '<div class="aviso erro">Digite os 4 números do seu PIN.</div>'; return; }
     if (!API_URL) { msg.innerHTML = '<div class="aviso erro">API_URL não configurada neste build (ver DEPLOY.md).</div>'; return; }
     el('l-ok').disabled = true;
     msg.innerHTML = '<div class="aviso">Entrando…</div>';
     try {
       const r = await fetch(API_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'login_simples', pesquisador_id: escolhido,
+        body: JSON.stringify({ action: 'login_simples', pesquisador_id: escolhido, pin,
                                app_version: APP_VERSION, device_id: await deviceId() }),
       });
       const j = JSON.parse(await r.text());
-      if (!j.ok) { el('l-ok').disabled = false; msg.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Não deu para entrar — chame o coordenador.')}</div>`; return; }
+      if (!j.ok) {
+        /* PIN errado: limpa os 4 dígitos para a pessoa digitar de novo sem apagar um a um */
+        pin = ''; conferePin();
+        msg.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Não deu para entrar — chame o coordenador.')}</div>`;
+        return;
+      }
       S.sessao = {
         pesquisador_id: j.pesquisador_id, nome: j.nome, token: j.token,
         validade: j.token_validade, meta_dia: j.meta_dia, device_id: await deviceId(),
@@ -557,8 +583,24 @@ function proximaTela() {
   if (S.tela >= ts.length - 1) return;
   S.tela++; render(); window.scrollTo(0, 0);
 }
-function telaAnterior() {
-  if (S.tela === 0) { S.r = null; wakeOff(); irPara('ponto'); return; }
+/** Tem resposta dentro? Serve para não perguntar "descartar?" numa entrevista em branco. */
+const entrevistaComecou = () => !!(S.r && (S.r.consentimento_verbal === true ||
+  S.r.modal || S.r.origem_nivel || S.r.destino_nivel || S.r.origem_motivo));
+
+async function telaAnterior() {
+  if (S.tela === 0) {
+    if (entrevistaComecou()) {
+      const q = await modal({
+        titulo: 'Descartar esta entrevista?',
+        corpo: '<p>O que já foi respondido <b>não será gravado</b>. As entrevistas ' +
+               'anteriores continuam salvas.</p>',
+        acoes: [{ id: 'nao', rotulo: 'Continuar entrevista', estilo: 'b-primario' },
+                { id: 'sim', rotulo: 'Descartar', estilo: 'b-recusa' }],
+      });
+      if (q !== 'sim') return;
+    }
+    S.r = null; wakeOff(); irPara('ponto'); return;
+  }
   S.tela--; render(); window.scrollTo(0, 0);
 }
 
@@ -604,7 +646,14 @@ function telaAbordagem(box, t) {
     wakeOn();
     proximaTela();
   };
-  el('a-no').onclick = () => irPara('recusa');
+  el('a-no').onclick = async () => {
+    const q = await modal({
+      titulo: 'Registrar recusa?',
+      corpo: '<p>Use quando a pessoa <b>não quis</b> responder. Na próxima tela você marca o motivo.</p>',
+      acoes: [{ id: 'nao', rotulo: 'Voltar' }, { id: 'sim', rotulo: 'Sim', estilo: 'b-recusa' }],
+    });
+    if (q === 'sim') irPara('recusa');
+  };
   ligarTrocaPonto();
   ligarVoltar();
 }
@@ -972,7 +1021,7 @@ function telaResumo(box, t) {
     <div id="v-msg"></div>
     <div class="rodape-acao">
       <div class="acoes">${btVoltar}
-        <button class="b-primario" id="salvar" style="min-height:64px">Salvar e próxima</button></div>
+        <button class="b-primario" id="salvar" style="min-height:64px">✓ Finalizar e salvar</button></div>
     </div>`;
 
   const oc = el('opc-c');
@@ -1015,14 +1064,19 @@ async function salvar() {
     el('v-msg').scrollIntoView({ block: 'center' });
     return;
   }
-  if (v.confirmacoes.length) {
-    const q = await modal({
-      titulo: 'Confirme antes de salvar',
-      corpo: `<ul>${v.confirmacoes.map((c) => `<li><b>${esc(c.id)}</b> — ${esc(c.msg)}</li>`).join('')}</ul>`,
-      acoes: [{ id: 'nao', rotulo: 'Voltar e corrigir' }, { id: 'sim', rotulo: 'Confirmo, salvar', estilo: 'b-primario' }],
-    });
-    if (q !== 'sim') return;
-  }
+  /* Dupla confirmação da tela final (pedido do coordenador, 24/08): salvar é irreversível
+   * do ponto de vista do entrevistador, então sempre passa por aqui. Quando há avisos de
+   * validação, eles entram NO MESMO modal — dois modais seguidos ninguém lê. */
+  const q = await modal({
+    titulo: 'Finalizar esta pesquisa?',
+    corpo: (v.confirmacoes.length
+      ? `<div class="aviso"><b>Confira antes:</b><ul>${v.confirmacoes.map((c) =>
+          `<li>${esc(c.msg)}</li>`).join('')}</ul></div>` : '') +
+      '<p>A entrevista vai para a fila e é enviada sozinha.</p>',
+    acoes: [{ id: 'nao', rotulo: 'Voltar e conferir' },
+            { id: 'sim', rotulo: '✓ Finalizar e salvar', estilo: 'b-primario' }],
+  });
+  if (q !== 'sim') return;
   /* flags de QC que o próprio aparelho já sabe carimbar */
   const flags = [];
   if (r.distancia_ao_ponto_m !== '' && r.distancia_ao_ponto_m > 300) flags.push('Q04_dist>300m');
@@ -1364,11 +1418,11 @@ async function boot() {
 /* Lista de nomes para o seletor de login. NÃO é segredo: o token é que autentica.
    Fica embutida para que a tela de login funcione mesmo se o servidor estiver fora do ar. */
 const EQUIPE_PADRAO = [
-  { pesq_id: 'G01', nome: 'Gestor de campo' },
-  { pesq_id: 'P01', nome: 'Entrevistador 1' },
-  { pesq_id: 'P02', nome: 'Entrevistador 2' },
-  { pesq_id: 'P03', nome: 'Entrevistador 3' },
-  { pesq_id: 'P04', nome: 'Entrevistador 4' },
+  { pesq_id: 'G01', nome: 'Luiz Gustavo' },
+  { pesq_id: 'P01', nome: 'José Henrique Seixas' },
+  { pesq_id: 'P02', nome: 'Guilherme Santos Batista' },
+  { pesq_id: 'P03', nome: 'Danielle Firmiano Costa dos Santos' },
+  { pesq_id: 'P04', nome: 'André Egídio' },
 ];
 
 boot();
