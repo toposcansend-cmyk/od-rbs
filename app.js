@@ -64,6 +64,8 @@ const S = {
 const FEITO_VALIDADE_MS = 2 * 60 * 60 * 1000;
 /* quem enxerga a vista de gestão. O gestor TAMBÉM entrevista — isto é camada a mais, não outra. */
 const GESTOR = 'G01';
+/** Único juiz de "sou o gestor?" no cliente. O servidor recusa não-G01 de qualquer jeito. */
+const ehGestor = () => S.sessao?.pesquisador_id === GESTOR;
 const SYNC_ATENCAO_MIN = 45, SYNC_ALERTA_MIN = 120;
 const el = (id) => document.getElementById(id);
 const main = () => el('main');
@@ -365,7 +367,10 @@ async function pintarCabecalho() {
   S.contDia = resp.filter((i) => i.dia === d).length;
 
   el('h-pesq').textContent = S.sessao.pesquisador_id;
-  el('h-equipe').hidden = S.sessao.pesquisador_id !== GESTOR;   // modo gestor é só do G01
+  /* modo gestor é só do G01. Optional chaining de propósito: se um index.html velho ficar
+     em cache sem este botão, o cabeçalho inteiro deixaria de pintar num TypeError. */
+  const btEquipe = el('h-equipe');
+  if (btEquipe) btEquipe.hidden = !ehGestor();
   el('h-ponto').textContent = S.ponto ? S.ponto.ponto_id : '— ponto —';
   el('h-nome').textContent = S.ponto ? S.ponto.nome : 'selecione';
 
@@ -498,7 +503,11 @@ function vPonto() {
     <h2 class="pergunta">Em qual ponto você está?</h2>
     <p>${badgeGps()} <span class="dica">lista ordenada pelo mais próximo</span></p>
     ${!S.fix ? '<div class="aviso">Ainda sem fix de GPS. A lista está na ordem do cadastro — confira o ponto pelo nome.</div>' : ''}
-    <ul class="lista" id="p-lista"></ul>`;
+    <ul class="lista" id="p-lista"></ul>
+    <!-- esta tela é a "casa" e não tem Voltar: sem uma saída escrita, o ☰ sozinho no
+         cabeçalho é invisível para quem nunca usou o app (Luiz, 24/08) -->
+    <button class="b-fantasma b-grande" id="p-menu" style="text-align:center;margin-top:.6rem">
+      ☰ Menu · sair, sincronizar, instalar</button>`;
   const ul = el('p-lista');
   const fresco = !!(S.feitoPontos && Date.now() - S.feitoPontos.em < FEITO_VALIDADE_MS);
   lista.forEach((p) => {
@@ -516,6 +525,7 @@ function vPonto() {
     b.onclick = () => { S.ponto = p; pintarCabecalho(); novaEntrevista(); };
     li.appendChild(b); ul.appendChild(li);
   });
+  el('p-menu').onclick = () => irPara('fila');
 }
 
 /* ================================================================ ENTREVISTA */
@@ -1155,6 +1165,8 @@ function resumoWhatsApp(g) {
 }
 
 async function vGestao() {
+  /* trava do cliente, além da do servidor: entrevistador não entra aqui nem por engano */
+  if (!ehGestor()) { toast('Vista exclusiva do coordenador.', 'erro'); return irPara('ponto'); }
   main().innerHTML = '<h2 class="pergunta">Equipe e pontos</h2><p class="dica">Carregando o quadro…</p>';
   const g = await carregarGestao(false);
   if (!g) {
@@ -1339,7 +1351,7 @@ async function boot() {
   S.feitoPontos = (await metaGet('feito_pontos')) || null;
   iniciarGps(); ligarSync();
   el('h-menu').onclick = () => irPara('fila');
-  el('h-equipe').onclick = () => irPara('gestao');
+  const btEq = el('h-equipe'); if (btEq) btEq.onclick = () => irPara('gestao');
   await pintarCabecalho();
 
   if (!S.sessao) return irPara('login');
