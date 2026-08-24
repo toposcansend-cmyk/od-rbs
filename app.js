@@ -152,9 +152,10 @@ function modal({ titulo, corpo, acoes }) {
 
 /* ================================================================ GPS (§7.3) */
 function iniciarGps() {
-  if (!navigator.geolocation) { S.fix = null; return; }
+  if (!navigator.geolocation) { S.fix = null; S.gpsErro = 2; return; }
   navigator.geolocation.watchPosition(
     (p) => {
+      S.gpsErro = 0;
       S.fix = {
         lat: p.coords.latitude, lon: p.coords.longitude,
         acc: p.coords.accuracy, ts: new Date(p.timestamp).toISOString(),
@@ -162,11 +163,46 @@ function iniciarGps() {
       };
       pintarCabecalho();
     },
-    () => { /* mantém o último fix; nunca zera o que já foi bom */ },
+    (err) => { S.gpsErro = err && err.code || 2; /* mantém o último fix; nunca zera o que já foi bom */ },
     { enableHighAccuracy: true, maximumAge: 15000, timeout: 60000 }
   );
 }
 const fixVelho = () => !S.fix || (Date.now() - new Date(S.fix.ts).getTime()) / 1000 > 120;
+
+/* GPS é GATE DURO da operação (decisão do dono, 24/08 19h40): sem fix fresco a
+ * entrevista NÃO inicia — o app trava ali e ensina a consertar. */
+const gpsValido = () => !!S.fix && !fixVelho();
+function modalGpsBloqueio(aoConsertar) {
+  const negado = S.gpsErro === 1;
+  const corpo = negado
+    ? `<p style="font-size:18px"><b>O app está sem PERMISSÃO de localização.</b></p>
+       <p>1. Toque no <b>cadeado</b> (ou ⋮) na barra do navegador<br>
+          2. <b>Permissões</b> → <b>Local</b> → <b>Permitir</b><br>
+          3. Se o app está instalado: segure o ícone dele → <b>Informações</b> → <b>Permissões</b> → <b>Local</b> → Permitir</p>
+       <p class="dica">Depois volte aqui e toque no botão verde.</p>`
+    : `<p style="font-size:18px"><b>O GPS está desligado ou ainda sem sinal.</b></p>
+       <p>1. Puxe a barra de cima do celular e <b>ligue a Localização</b> 📍<br>
+          2. Fique em <b>céu aberto</b> (fora de carro/telhado)<br>
+          3. Aguarde uns 30 segundos</p>
+       <p class="dica">O GPS funciona sem internet — é satélite.</p>`;
+  return modal({
+    titulo: '📍 Sem GPS não tem pesquisa',
+    corpo,
+    acoes: [{ id: 'de-novo', rotulo: '✓ Já consertei — tentar de novo', estilo: 'b-primario' }],
+  }).then(() => new Promise((res) => {
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        S.gpsErro = 0;
+        S.fix = { lat: p.coords.latitude, lon: p.coords.longitude, acc: p.coords.accuracy,
+                  ts: new Date(p.timestamp).toISOString(), fonte: p.coords.accuracy <= 100 ? 'gps' : 'rede' };
+        pintarCabecalho(); toast('📍 GPS ok!', 'ok');
+        res(aoConsertar ? aoConsertar() : true);
+      },
+      () => { toast('Ainda sem GPS — confira os passos.', 'erro'); res(modalGpsBloqueio(aoConsertar)); },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+    );
+  }));
+}
 function badgeGps() {
   if (!S.fix) return '<span class="gps cinza">GPS sem fix</span>';
   const c = classificarAccuracy(S.fix.acc);
@@ -538,13 +574,17 @@ function vPonto() {
   main().innerHTML = `
     <h2 class="pergunta">Em qual ponto você está?</h2>
     <p>${badgeGps()} <span class="dica">lista ordenada pelo mais próximo</span></p>
-    ${!S.fix ? '<div class="aviso">Ainda sem fix de GPS. A lista está na ordem do cadastro — confira o ponto pelo nome.</div>' : ''}
+    ${!gpsValido() ? `<div class="aviso erro"><b>📍 GPS desligado ou sem sinal.</b> A pesquisa
+      <b>não inicia</b> sem localização — conserte antes de abordar alguém.
+      <div class="acoes" style="margin-top:.5rem"><button id="p-gps" class="b-primario">Consertar o GPS agora</button></div></div>` : ''}
     <ul class="lista" id="p-lista"></ul>
     <!-- esta tela é a "casa" e não tem Voltar: sem uma saída escrita, o ☰ sozinho no
          cabeçalho é invisível para quem nunca usou o app (Luiz, 24/08) -->
     <button class="b-fantasma b-grande" id="p-menu" style="text-align:center;margin-top:.6rem">
       ☰ Menu · sair, sincronizar, instalar</button>`;
   const ul = el('p-lista');
+  const bGps = el('p-gps');
+  if (bGps) bGps.onclick = () => modalGpsBloqueio(() => irPara('ponto'));  // consertou → re-renderiza já ordenado
   const fresco = !!(S.feitoPontos && Date.now() - S.feitoPontos.em < FEITO_VALIDADE_MS);
   lista.forEach((p) => {
     const li = document.createElement('li');
@@ -649,12 +689,17 @@ function telaAbordagem(box, t) {
       <button class="b-recusa" id="a-no" style="min-height:64px">Recusa</button>
     </div>
     <div style="margin-top:1rem">${btVoltar}</div>`;
-  el('a-ok').onclick = () => {
+  const aceitar = () => {
     S.r.consentimento_verbal = true;
     S.r.ts_inicio = new Date().toISOString();          // <- definição travada no dicionário
     carimbarGps();
     wakeOn();
     proximaTela();
+  };
+  el('a-ok').onclick = () => {
+    /* GATE DURO: sem fix fresco a entrevista não começa (dono, 24/08) */
+    if (!gpsValido()) { modalGpsBloqueio(aceitar); return; }
+    aceitar();
   };
   el('a-no').onclick = async () => {
     const q = await modal({

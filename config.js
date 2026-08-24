@@ -2,7 +2,7 @@
  * NÃO contém segredo: o repositório é público (§7.3 trava 1).
  * O token é por pesquisador, digitado uma vez na segunda 25/08 e guardado no aparelho.
  */
-export const APP_VERSION = '0.9.8';
+export const APP_VERSION = '0.9.9';
 
 /* URL /exec do Web App do Apps Script — JÁ IMPLANTADA em 21/08.
  * Responde 403 até o dono autorizar os escopos uma vez no editor (ver DEPLOY.md).
