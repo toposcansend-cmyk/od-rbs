@@ -423,16 +423,18 @@ function vLogin() {
   el('hdr').hidden = true;
   main().innerHTML = `
     <h1>Pesquisa Origem-Destino<br>Rio Branco do Sul</h1>
-    <p class="dica">Toque no seu nome, digite seu <b>PIN de 4 números</b> e depois em
-    <b>Começar</b>. É só na primeira vez — depois o aplicativo funciona até sem internet.</p>
+    <p class="dica">Toque no seu nome e digite seu <b>PIN de 4 números</b> — no último
+    número ele entra sozinho. É só na primeira vez — depois o aplicativo funciona até sem internet.</p>
     ${blocoInstalar()}
     <div id="l-lista" class="lista-nomes"></div>
     <div id="l-pin" hidden>
       <h3 id="l-pin-t"></h3>
       <div class="pin-dots" id="l-dots"><i></i><i></i><i></i><i></i></div>
       <div class="teclado" id="l-tec"></div>
+      <!-- o botão vive DENTRO do bloco do PIN: abaixo dele ficava fora da tela
+           do celular e o 4º dígito "não fazia nada" (Luiz, 24/08 19h) -->
+      <div class="acoes"><button id="l-ok" class="b-primario" disabled>Começar</button></div>
     </div>
-    <div class="acoes"><button id="l-ok" class="b-primario" disabled>Começar</button></div>
     <div id="l-msg"></div>
     <p class="dica" style="margin-top:1.2rem">Versão ${esc(APP_VERSION)} · schema ${esc(S.schema?.schema_version || '—')}</p>`;
   ligarInstalar();
@@ -453,6 +455,9 @@ function vLogin() {
     else if (pin.length < 4) pin += k;
     el('l-msg').innerHTML = '';
     conferePin();
+    /* 4º dígito entra SOZINHO (180ms para a 4ª bolinha pintar antes do "Entrando…").
+       O botão Começar continua como reserva — mesma função, sem duplo disparo. */
+    if (pin.length === 4) setTimeout(entrar, 180);
   });
 
   const lista = el('l-lista'); let escolhido = '';
@@ -480,11 +485,14 @@ function vLogin() {
     lista.appendChild(b);
   });
 
-  el('l-ok').onclick = async () => {
+  let entrando = false;
+  const entrar = async () => {
+    if (entrando) return;                       // 4º dígito + toque no botão = 1 login só
     const msg = el('l-msg');
     if (!escolhido) { msg.innerHTML = '<div class="aviso erro">Toque no seu nome primeiro.</div>'; return; }
     if (pin.length !== 4) { msg.innerHTML = '<div class="aviso erro">Digite os 4 números do seu PIN.</div>'; return; }
     if (!API_URL) { msg.innerHTML = '<div class="aviso erro">API_URL não configurada neste build (ver DEPLOY.md).</div>'; return; }
+    entrando = true;
     el('l-ok').disabled = true;
     msg.innerHTML = '<div class="aviso">Entrando…</div>';
     try {
@@ -496,7 +504,7 @@ function vLogin() {
       const j = JSON.parse(await r.text());
       if (!j.ok) {
         /* PIN errado: limpa os 4 dígitos para a pessoa digitar de novo sem apagar um a um */
-        pin = ''; conferePin();
+        pin = ''; conferePin(); entrando = false;
         msg.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Não deu para entrar — chame o coordenador.')}</div>`;
         return;
       }
@@ -510,10 +518,12 @@ function vLogin() {
       toast(`Bem-vindo(a), ${j.nome}.`, 'ok');
       await pintarCabecalho(); irPara('ponto');
     } catch (e) {
+      entrando = false;
       el('l-ok').disabled = false;
       msg.innerHTML = `<div class="aviso erro">Sem internet agora. A primeira entrada precisa de sinal — depois nunca mais.<br><small>${esc(e.message)}</small></div>`;
     }
   };
+  el('l-ok').onclick = entrar;
 }
 
 async function deviceId() {
