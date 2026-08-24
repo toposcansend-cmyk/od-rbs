@@ -71,6 +71,62 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+/* ================================================================ instalar na tela inicial
+ * Feedback do Luiz (1º usuário real, 24/08): "não dá a opção de baixar, fica no Chrome".
+ * O navegador só oferece a instalação num menu escondido; aqui ela vira um botão grande.
+ * O evento chega ANTES do boot, por isso o listener é de módulo, não de função. */
+let promptInstalar = null;
+const jaInstalado = () =>
+  matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();                 // sem isto o Chrome mostra a barrinha dele e some
+  promptInstalar = e;
+  ligarInstalar();
+});
+window.addEventListener('appinstalled', () => {
+  promptInstalar = null;
+  document.getElementById('inst-bt')?.remove();
+});
+
+const blocoInstalar = () => (jaInstalado() ? '' :
+  `<button class="b-grande b-primario" id="inst-bt" style="text-align:center">📲 Instalar o aplicativo</button>`);
+
+function ligarInstalar() {
+  const b = document.getElementById('inst-bt');
+  if (!b) return;
+  b.onclick = async () => {
+    if (promptInstalar) {
+      promptInstalar.prompt();
+      const r = await promptInstalar.userChoice.catch(() => null);
+      if (r && r.outcome === 'accepted') { promptInstalar = null; b.remove(); }
+      return;
+    }
+    comoInstalar();     // iPhone e afins: o evento não existe, então ensinamos o caminho
+  };
+}
+
+/** Passo a passo curto, em letra grande, sem jargão. */
+function comoInstalar() {
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  return modal({
+    titulo: 'Deixar o app na tela inicial',
+    corpo: ios
+      ? `<ol class="passos">
+           <li>Toque no botão <b>Compartilhar</b> <span class="ic-p">⬆️</span> — fica embaixo, no meio da tela.</li>
+           <li>Role a lista e toque em <b>Adicionar à Tela de Início</b>.</li>
+           <li>Toque em <b>Adicionar</b>, no canto de cima.</li>
+         </ol><p class="dica">Depois disso o ícone fica junto dos outros aplicativos.</p>`
+      : `<ol class="passos">
+           <li>Toque nos <b>três pontinhos</b> <span class="ic-p">⋮</span> no canto de cima.</li>
+           <li>Toque em <b>Instalar aplicativo</b> (ou <b>Adicionar à tela inicial</b>).</li>
+           <li>Confirme em <b>Instalar</b>.</li>
+         </ol><p class="dica">Depois disso o ícone fica junto dos outros aplicativos.</p>`,
+    acoes: [{ id: 'ok', rotulo: 'Entendi', estilo: 'b-primario' }],
+  });
+}
+
 /* ================================================================ UI utils */
 let toastT;
 function toast(msg, tipo = '') {
@@ -364,15 +420,24 @@ function vLogin() {
     <h1>Pesquisa Origem-Destino<br>Rio Branco do Sul</h1>
     <p class="dica">Toque no seu nome e depois em <b>Começar</b>. É só na primeira vez —
     depois o aplicativo funciona até sem internet.</p>
+    ${blocoInstalar()}
     <div id="l-lista" class="lista-nomes"></div>
     <div class="acoes"><button id="l-ok" class="b-primario" disabled>Começar</button></div>
     <div id="l-msg"></div>
     <p class="dica" style="margin-top:1.2rem">Versão ${esc(APP_VERSION)} · schema ${esc(S.schema?.schema_version || '—')}</p>`;
+  ligarInstalar();
 
   const lista = el('l-lista'); let escolhido = '';
-  (S.equipe || []).forEach((p) => {
+  /* o GESTOR vai para o FIM da lista e fica marcado: em campo, o toque errado no primeiro
+     nome da lista fazia o entrevistador entrar como coordenador (Luiz, 24/08) */
+  const ordenada = [...(S.equipe || [])].sort(
+    (a, b) => (a.pesq_id === GESTOR ? 1 : 0) - (b.pesq_id === GESTOR ? 1 : 0));
+  ordenada.forEach((p) => {
+    const eGestor = p.pesq_id === GESTOR;
     const b = document.createElement('button'); b.type = 'button';
-    b.innerHTML = `${esc(p.nome)}<span class="sub">${esc(p.pesq_id)}</span>`;
+    if (eGestor) b.className = 'gestor';
+    b.innerHTML = `${esc(p.nome)}<span class="sub">${
+      eGestor ? 'GESTOR — só o coordenador usa' : esc(p.pesq_id)}</span>`;
     b.onclick = () => {
       escolhido = p.pesq_id;
       [...lista.children].forEach((x) => x.classList.remove('sel'));
@@ -384,6 +449,15 @@ function vLogin() {
   el('l-ok').onclick = async () => {
     const msg = el('l-msg');
     if (!escolhido) { msg.innerHTML = '<div class="aviso erro">Toque no seu nome primeiro.</div>'; return; }
+    if (escolhido === GESTOR) {
+      const q = await modal({
+        titulo: 'Você é o COORDENADOR da equipe?',
+        corpo: '<p>Esta entrada é só do coordenador de campo. Se você é entrevistador, ' +
+               'volte e toque no <b>seu</b> nome.</p>',
+        acoes: [{ id: 'nao', rotulo: 'Voltar' }, { id: 'sim', rotulo: 'Sou o coordenador', estilo: 'b-primario' }],
+      });
+      if (q !== 'sim') return;
+    }
     if (!API_URL) { msg.innerHTML = '<div class="aviso erro">API_URL não configurada neste build (ver DEPLOY.md).</div>'; return; }
     el('l-ok').disabled = true;
     msg.innerHTML = '<div class="aviso">Entrando…</div>';
@@ -1196,12 +1270,41 @@ async function vFila() {
     </dl></div>
     <button class="b-primario b-grande" id="f-sync" style="text-align:center">Sincronizar agora (${pend.length})</button>
     <button class="b-grande" id="f-ponto" style="text-align:center">Trocar de ponto</button>
+    ${blocoInstalar()}
+    <button class="b-grande" id="f-sair" style="text-align:center">🚪 Sair / trocar usuário</button>
     <h3>Encerramento (§6.3.8)</h3>
     <p class="dica">Só com a fila em <b>0</b> e o coordenador presente.</p>
     <button class="b-grande b-recusa" id="f-limpar" style="text-align:center">Limpar dados locais</button>
     <div class="acoes">${btVoltar}</div>`;
   el('f-sync').onclick = () => sincronizar(true);
   el('f-ponto').onclick = () => irPara('ponto');
+  ligarInstalar();
+  /* Sair / trocar usuário: a fila é sagrada — sair NUNCA descarta pendência.
+   * Não reatribui nada: pesquisador_id é carimbado no momento do salvar. */
+  el('f-sair').onclick = async () => {
+    if (pend.length) {
+      const q = await modal({
+        titulo: 'Ainda há entrevistas na fila',
+        corpo: `<p>Envie as <b>${pend.length}</b> pendentes antes de trocar de usuário.
+                Nada será descartado.</p>`,
+        acoes: [{ id: 'nao', rotulo: 'Voltar' }, { id: 'sync', rotulo: 'Sincronizar agora', estilo: 'b-primario' }],
+      });
+      if (q === 'sync') sincronizar(true);
+      return;
+    }
+    const q = await modal({
+      titulo: 'Sair e trocar de usuário?',
+      corpo: '<p>Você volta para a tela de escolha de nome. As entrevistas já enviadas ' +
+             'continuam no servidor — nada se perde.</p>',
+      acoes: [{ id: 'nao', rotulo: 'Cancelar' }, { id: 'sim', rotulo: 'Sair', estilo: 'b-recusa' }],
+    });
+    if (q !== 'sim') return;
+    await metaSet('sessao', null);
+    await metaSet('cache_gestao', null);          // quadro do gestor não fica no aparelho do próximo
+    S.sessao = null; S.ponto = null; S.r = null; S.gestao = null; S.cotaAvisada = {};
+    el('hdr').hidden = true;
+    irPara('login');
+  };
   el('f-limpar').onclick = async () => {
     if (pend.length) { toast(`Ainda há ${pend.length} na fila. Sincronize primeiro.`, 'erro'); return; }
     const q = await modal({

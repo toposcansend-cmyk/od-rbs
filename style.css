@@ -134,6 +134,11 @@ button:active, .btn:active { transform: scale(.985); }
 .tag { font-size: 13px; font-weight: 700; padding: .05rem .35rem; border-radius: 5px;
        background: var(--verde-claro); color: var(--verde); }
 
+/* ------------------------------------------------------------ instalar na tela inicial */
+.passos { margin: .2rem 0 .4rem; padding-left: 1.4rem; font-size: 18px; line-height: 1.5; }
+.passos li { margin-bottom: .55rem; }
+.ic-p { font-size: 21px; }
+
 /* ------------------------------------------------------------ modo gestor (G01) */
 .cartao { border: 2px solid var(--linha); border-radius: 12px; padding: .55rem .7rem; margin-bottom: .5rem; }
 .cartao-t { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
@@ -202,6 +207,10 @@ details.opc summary { font-weight: 700; color: var(--cinza); cursor: pointer; mi
   background: var(--fundo); color: var(--tinta); width: 100%;
 }
 .lista-nomes button .sub { display: block; font-size: 15px; font-weight: 400; color: var(--cinza); }
+/* o gestor fica por último e visualmente separado: toque errado aqui faz o entrevistador
+   coletar o dia inteiro como coordenador */
+.lista-nomes button.gestor { border-style: dashed; border-color: var(--recusa); background: var(--fundo-2); }
+.lista-nomes button.gestor .sub { color: var(--recusa); font-weight: 700; letter-spacing: .02em; }
 .lista-nomes button.sel { border-color: var(--verde); background: var(--verde-claro); }
 
 /* ------------------------------------------------------------ toast */
