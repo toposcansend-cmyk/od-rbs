@@ -267,7 +267,7 @@ async function sincronizar(manual = false) {
 
 function ligarSync() {
   setInterval(() => sincronizar(false), SYNC_INTERVALO_MS);       // gatilho 2: timer 30 s
-  window.addEventListener('online', () => sincronizar(false));    // gatilho 1: evento online
+  window.addEventListener('online', () => { sincronizar(false); atualizarQuadro(); });  // gatilho 1: evento online
   el('h-sync').onclick = () => sincronizar(true);                 // gatilho 4: botão manual
   navigator.serviceWorker?.ready.then((reg) => {                  // gatilho 3: Background Sync (não-iOS)
     reg.sync?.register('od-sync').catch(() => {});
@@ -1028,6 +1028,26 @@ async function carregarGestao(manual = false) {
 
 const idadeMin = (ms) => Math.max(0, Math.round((Date.now() - ms) / 60000));
 
+/**
+ * Puxa o quadro do time sem depender de ter algo na fila.
+ * Os aparelhos entram em campo JÁ LOGADOS (o login é uma vez só, no treinamento), então
+ * sem isto o "aqui X/C" ficaria em "só meu" a manhã inteira, até a primeira sincronização.
+ * Reusa o login_simples: mesma chamada de sempre, e ainda serve de heartbeat.
+ */
+async function atualizarQuadro() {
+  if (!navigator.onLine || !API_URL || !S.sessao) return;
+  if (S.feitoPontos && Date.now() - S.feitoPontos.em < FEITO_VALIDADE_MS) return;
+  try {
+    const r = await fetch(API_URL, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'login_simples', pesquisador_id: S.sessao.pesquisador_id,
+                             app_version: APP_VERSION, device_id: S.sessao.device_id }),
+    });
+    const j = JSON.parse(await r.text());
+    if (j.ok && j.feito_pontos) { await guardarFeitoPontos(j.feito_pontos); await pintarCabecalho(); }
+  } catch { /* offline: o cabeçalho segue com o que sabe, dizendo "só meu" */ }
+}
+
 /** Clipboard com plano B: se o navegador recusar, o texto fica na tela para copiar à mão. */
 async function copiar(txt) {
   try {
@@ -1222,6 +1242,7 @@ async function boot() {
   if (!S.sessao) return irPara('login');
   if (S.sessao.validade && hoje() > S.sessao.validade)
     toast('Token vencido — fale com o coordenador.', 'erro');
+  atualizarQuadro();                                  // começa o dia com o quadro do time
   irPara('ponto');
 }
 
