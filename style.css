@@ -49,8 +49,18 @@ body { display: flex; flex-direction: column; min-height: 100svh; }
 .hdr-l { display: flex; align-items: center; gap: .4rem; min-width: 0; }
 .hdr-r { display: flex; align-items: center; gap: .35rem; flex: none; }
 .pill { background: rgba(255,255,255,.22); border-radius: 999px; padding: .12rem .5rem; flex: none; }
-.ponto { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.cont { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ponto { white-space: nowrap; flex: none; }
+/* o NOME do ponto é o único luxo do cabeçalho: some primeiro quando falta largura
+   (em 375px sobra espaço só para P01 · PU02 · aqui X/C · dia N/M · ⟳ N) */
+.nome { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto;
+        min-width: 0; font-weight: 400; opacity: .82; }
+.cont { font-variant-numeric: tabular-nums; white-space: nowrap; flex: none; font-size: 13px; }
+.cont.aqui { background: rgba(255,255,255,.22); border-radius: 999px; padding: .12rem .45rem; }
+.cont.aqui.ok { background: #dcfce7; color: #14532d; }
+.cont.aqui.alerta { background: var(--amarelo); color: #713f12; }
+/* celular: o nome do ponto sai de vez. O ID é a chave, e o nome está na tela de seleção,
+   no resumo e no aviso de troca de ponto — no cabeçalho ele só roubaria os contadores. */
+@media (max-width: 430px) { .nome { display: none; } }
 #hdr button {
   min-height: 38px; min-width: 44px; border: 0; border-radius: 8px;
   background: rgba(255,255,255,.2); color: #fff; font: inherit; font-size: 16px; cursor: pointer;
@@ -119,8 +129,18 @@ button:active, .btn:active { transform: scale(.985); }
 .m.abaixo { background: #fee2e2; color: var(--erro); }
 .m.parcial { background: #fef3c7; color: var(--alerta); }
 .m.ok { background: #dcfce7; color: var(--ok); }
+/* passou de 130% da cota: parar de insistir neste ponto e migrar para o mais atrasado */
+.m.cheio { background: #fee2e2; color: var(--erro); }
 .tag { font-size: 13px; font-weight: 700; padding: .05rem .35rem; border-radius: 5px;
        background: var(--verde-claro); color: var(--verde); }
+
+/* ------------------------------------------------------------ modo gestor (G01) */
+.cartao { border: 2px solid var(--linha); border-radius: 12px; padding: .55rem .7rem; margin-bottom: .5rem; }
+.cartao-t { display: flex; align-items: center; gap: .45rem; flex-wrap: wrap; }
+.cartao-t b { font-size: 17px; }
+.cartao-t .m { margin-left: auto; }
+.cartao-s { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-top: .35rem; }
+.cartao-s .dica { font-size: 14px; }
 
 /* ------------------------------------------------------------ formularios */
 input[type="text"], input[type="number"], input[type="search"], textarea, select {

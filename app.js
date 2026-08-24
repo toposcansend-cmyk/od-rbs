@@ -6,7 +6,7 @@ import { APP_VERSION, API_URL, SYNC_INTERVALO_MS, LOTE_MAX, TOKEN_VALIDADE } fro
 import {
   novoUuid, haversine, ordenarPontosPorDistancia, classificarAccuracy, periodoDe,
   normalizar, buscarVias, validar, ehDescarteSilencioso, montarLote, enviarLote,
-  filaEsperaMin, dentroDoPoligono, foraDoMunicipio,
+  filaEsperaMin, dentroDoPoligono, foraDoMunicipio, avaliarPosicao, avaliarCota,
 } from './queue.js';
 
 /* ================================================================ IndexedDB */
@@ -56,8 +56,15 @@ const S = {
   tela: 0,               // índice da tela do schema
   vista: 'boot',
   fila: 0, contDia: 0,
+  feitoPontos: null,     // {mapa:{ponto_id:n}, em:ms} — quadro do TIME, vindo do servidor
+  cotaAvisada: {},       // evita repetir o toast de cota a cada fix de GPS
   enviando: false, wakeLock: null, mapa: null, marcador: null,
 };
+/* o quadro do time envelhece: passou disto, o cabeçalho assume que só sabe o próprio aparelho */
+const FEITO_VALIDADE_MS = 2 * 60 * 60 * 1000;
+/* quem enxerga a vista de gestão. O gestor TAMBÉM entrevista — isto é camada a mais, não outra. */
+const GESTOR = 'G01';
+const SYNC_ATENCAO_MIN = 45, SYNC_ALERTA_MIN = 120;
 const el = (id) => document.getElementById(id);
 const main = () => el('main');
 const hoje = () => new Date().toISOString().slice(0, 10);
@@ -107,6 +114,43 @@ function badgeGps() {
   const c = classificarAccuracy(S.fix.acc);
   const v = fixVelho() ? ' · fix &gt;120s' : '';
   return `<span class="gps ${c.cor}">📍 ±${Math.round(S.fix.acc)} m${v}</span>`;
+}
+
+/* ---- "estou na área certa?" (§ item 2): badge + convite de 1 toque, nunca bloqueio */
+function badgePosto() {
+  const a = avaliarPosicao(S.fix, S.ponto, S.pontos);
+  if (a.dist_m === null) return '';
+  if (!a.longe) return `<span class="gps verde">✓ no ponto · ${a.dist_m} m</span>`;
+  return `<span class="gps amarelo">a ${a.dist_m} m do ponto</span>`;
+}
+
+/** Se o ponto mais próximo não é o selecionado E o selecionado está longe, oferece a troca. */
+function avisoPontoErrado() {
+  const a = avaliarPosicao(S.fix, S.ponto, S.pontos);
+  if (!a.sugestao) return '';
+  return `<div class="aviso" id="troca-ponto">
+    Você parece estar em <b>${esc(a.sugestao.ponto_id)} · ${esc(a.sugestao.nome)}</b>
+    (${a.sugestao.dist_m} m daqui, contra ${a.dist_m} m do ponto selecionado).
+    <button class="b-primario" id="troca-ok" style="margin-top:.5rem">Trocar para cá</button></div>`;
+}
+function ligarTrocaPonto() {
+  const b = el('troca-ok');
+  if (!b) return;
+  b.onclick = () => {
+    const a = avaliarPosicao(S.fix, S.ponto, S.pontos);
+    if (!a.sugestao) return;
+    trocarPonto(a.sugestao);
+  };
+}
+/** Troca o ponto SEM apagar a entrevista em curso (só recarimba a que ponto ela pertence). */
+function trocarPonto(p) {
+  S.ponto = S.pontos.find((x) => x.ponto_id === p.ponto_id) || p;
+  if (S.r) {
+    S.r.ponto_id = S.ponto.ponto_id; S.r.ponto_nome = S.ponto.nome; S.r.ponto_tipo = S.ponto.tipo;
+    if (S.fix) S.r.distancia_ao_ponto_m = haversine(S.fix.lat, S.fix.lon, S.ponto.lat, S.ponto.lon);
+  }
+  toast(`Ponto trocado para ${S.ponto.ponto_id} · ${S.ponto.nome}.`, 'ok');
+  pintarCabecalho(); render();
 }
 
 async function wakeOn() {
@@ -207,6 +251,8 @@ async function sincronizar(manual = false) {
       const reg = await tx(store, 'readonly', (s) => s.get(i.uuid));
       if (reg) { reg.status = 'sincronizado'; reg.ts_sync = new Date().toISOString(); await put(store, reg); }
     }
+    /* o servidor devolve o quadro do time — é o que faz "aqui X/C" valer para todos */
+    if (res.feito_pontos) await guardarFeitoPontos(res.feito_pontos);
     if (res.sincronizados.length) toast(`${res.sincronizados.length} enviado(s).`, 'ok');
     if (res.erro) { console.warn('[sync]', res.erro); if (manual) toast('Fila mantida: ' + res.erro, 'erro'); }
     else if (!res.sincronizados.length && manual) toast('Nada foi confirmado pelo servidor.', 'erro');
@@ -232,16 +278,65 @@ function ligarSync() {
 }
 
 /* ================================================================ cabeçalho (tela 0) */
+/** Guarda o quadro do time que veio do servidor (login ou sync). */
+async function guardarFeitoPontos(mapa) {
+  if (!mapa || typeof mapa !== 'object') return;
+  S.feitoPontos = { mapa, em: Date.now() };
+  await metaSet('feito_pontos', S.feitoPontos);
+}
+
+/**
+ * Quantas já foram feitas NESTE ponto, contando o time todo.
+ * O servidor é a fonte; offline vale a contagem do próprio aparelho, e o cabeçalho
+ * diz "(só meu)" para ninguém confundir a própria produção com a do ponto.
+ */
+function feitoNoPonto(ponto, respostas) {
+  if (!ponto) return { n: 0, global: false };
+  const d = hoje();
+  const locais = respostas.filter((i) => i.dia === d && i.payload?.ponto_id === ponto.ponto_id).length;
+  const fresco = !!(S.feitoPontos && Date.now() - S.feitoPontos.em < FEITO_VALIDADE_MS);
+  const global = fresco ? Number(S.feitoPontos.mapa[ponto.ponto_id]) || 0 : 0;
+  return { n: Math.max(global, locais), global: fresco };
+}
+
 async function pintarCabecalho() {
   if (!S.sessao) { el('hdr').hidden = true; return; }
   el('hdr').hidden = false;
-  S.fila = await contarFila(); S.contDia = await contarHoje();
+  /* uma leitura só das duas stores alimenta fila + dia + ponto (antes eram três) */
+  const [resp, rec] = await Promise.all([todos('respostas'), todos('recusas')]);
+  const d = hoje();
+  S.fila = [...resp, ...rec].filter((i) => i.status === 'pendente').length;
+  S.contDia = resp.filter((i) => i.dia === d).length;
+
   el('h-pesq').textContent = S.sessao.pesquisador_id;
-  el('h-ponto').textContent = S.ponto ? `${S.ponto.ponto_id} ${S.ponto.nome}` : '— selecione o ponto —';
-  el('h-cont').textContent = `${S.contDia}/${S.sessao.meta_dia || '—'} hoje`;
+  el('h-equipe').hidden = S.sessao.pesquisador_id !== GESTOR;   // modo gestor é só do G01
+  el('h-ponto').textContent = S.ponto ? S.ponto.ponto_id : '— ponto —';
+  el('h-nome').textContent = S.ponto ? S.ponto.nome : 'selecione';
+
+  const cota = Number(S.ponto?.meta_entrevistas) || 0;
+  const aqui = feitoNoPonto(S.ponto, resp);
+  const c = avaliarCota(aqui.n, cota);
+  const eAqui = el('h-aqui');
+  eAqui.textContent = S.ponto ? `aqui ${aqui.n}/${cota || '—'}${aqui.global ? '' : ' só meu'}` : 'aqui —';
+  eAqui.className = 'cont aqui' + (c.estado === 'completa' ? ' ok' : c.estado === 'excedida' ? ' alerta' : '');
+  eAqui.title = S.ponto
+    ? `${aqui.n} de ${cota} no ponto ${S.ponto.ponto_id}` +
+      (aqui.global ? ' (time todo)' : ' — sem quadro do servidor há mais de 2 h: só este aparelho')
+    : '';
+
+  el('h-cont').textContent = `dia ${S.contDia}/${S.sessao.meta_dia || '—'}`;
   el('h-fila').textContent = S.fila;
   el('h-sync').classList.toggle('pendente', S.fila > 0);
   el('h-sync').title = S.fila ? `Sincronizar agora (${S.fila} na fila)` : 'Tudo sincronizado';
+
+  /* avisa UMA vez por mudança de estado — o cabeçalho repinta a cada fix de GPS */
+  if (S.ponto && S.cotaAvisada[S.ponto.ponto_id] !== c.estado) {
+    S.cotaAvisada[S.ponto.ponto_id] = c.estado;
+    if (c.estado === 'completa')
+      toast(`Cota de ${S.ponto.ponto_id} completa (${aqui.n}/${cota}) — pode estender até +30% se o fluxo estiver bom (G3).`, 'ok');
+    else if (c.estado === 'excedida')
+      toast(`${S.ponto.ponto_id} passou de 130% da cota (${aqui.n}/${cota}). Migre para o ponto vizinho mais atrasado.`, 'erro');
+  }
 }
 
 /* ================================================================ router */
@@ -254,6 +349,7 @@ function render() {
     case 'entrevista': return vTela();
     case 'recusa': return vRecusa();
     case 'fila': return vFila();
+    case 'gestao': return vGestao();
     default: return;
   }
 }
@@ -305,6 +401,7 @@ function vLogin() {
         entrou_em: new Date().toISOString(),
       };
       await metaSet('sessao', S.sessao);           // <- nunca mais pede, mesmo em modo avião
+      await guardarFeitoPontos(j.feito_pontos);    // o dia começa com o quadro atual do time
       toast(`Bem-vindo(a), ${j.nome}.`, 'ok');
       await pintarCabecalho(); irPara('ponto');
     } catch (e) {
@@ -329,14 +426,19 @@ function vPonto() {
     ${!S.fix ? '<div class="aviso">Ainda sem fix de GPS. A lista está na ordem do cadastro — confira o ponto pelo nome.</div>' : ''}
     <ul class="lista" id="p-lista"></ul>`;
   const ul = el('p-lista');
+  const fresco = !!(S.feitoPontos && Date.now() - S.feitoPontos.em < FEITO_VALIDADE_MS);
   lista.forEach((p) => {
     const li = document.createElement('li');
     const b = document.createElement('button'); b.className = 'item';
     const d = p.dist_m === null ? '—' : p.dist_m < 1000 ? `${p.dist_m} m` : `${(p.dist_m / 1000).toFixed(1)} km`;
+    /* feito/meta do TIME: é assim que se escolhe "o vizinho mais atrasado" sem adivinhar */
+    const f = fresco ? Number(S.feitoPontos.mapa[p.ponto_id]) || 0 : null;
+    const est = f === null ? '' : avaliarCota(f, p.meta_entrevistas).estado;
     b.innerHTML = `<span class="d">${esc(d)}</span>
       <span class="n"><b>${esc(p.ponto_id)} · ${esc(p.nome)}</b>
       <small>${esc(p.bairro)} · ${p.tipo === 'rural' ? 'rural ' + esc(p.rota) : 'urbano · Tier ' + esc(p.tier)}</small></span>
-      <span class="m">meta ${p.meta_entrevistas}</span>`;
+      <span class="m${est === 'completa' ? ' ok' : est === 'excedida' ? ' cheio' : ''}">${
+        f === null ? 'meta ' + p.meta_entrevistas : f + '/' + p.meta_entrevistas}</span>`;
     b.onclick = () => { S.ponto = p; pintarCabecalho(); novaEntrevista(); };
     li.appendChild(b); ul.appendChild(li);
   });
@@ -347,6 +449,7 @@ function telasAtivas() {
   return S.schema.telas.filter((t) => {
     if (!t.condicional) return true;
     if (t.condicional.includes('transbordo')) return S.ponto?.transbordo === true;
+    if (t.condicional.includes('modal')) return S.r?.modal === 'onibus';   // v1.0: acesso_onibus
     return true;
   });
 }
@@ -358,6 +461,10 @@ function novaEntrevista() {
     ponto_id: S.ponto.ponto_id, ponto_nome: S.ponto.nome, ponto_tipo: S.ponto.tipo,
     qc_status: 'ok', qc_flags: '', consentimento_verbal: false,
   };
+  /* padrões vindos do schema (v1.0: entrevistado_tipo = circulando já pré-selecionado —
+     a exceção é o comerciante, e um toque a mais em 350 entrevistas custa caro) */
+  for (const t of S.schema.telas)
+    for (const g of (t.grupos || [])) if (g.padrao !== undefined) S.r[g.campo] = g.padrao;
   S.tela = 0; irPara('entrevista');
 }
 
@@ -399,7 +506,8 @@ function telaAbordagem(box, t) {
     <div class="resumo"><div style="padding:.6rem 0">
       ${t.script.map((l) => `<p>${esc(l.replace('[NOME]', nome))}</p>`).join('')}
     </div></div>
-    <p>${badgeGps()}</p>
+    <p>${badgeGps()} ${badgePosto()}</p>
+    ${avisoPontoErrado()}
     <div class="acoes">
       <button class="b-primario" id="a-ok" style="min-height:64px">Aceitou</button>
       <button class="b-recusa" id="a-no" style="min-height:64px">Recusa</button>
@@ -413,6 +521,7 @@ function telaAbordagem(box, t) {
     proximaTela();
   };
   el('a-no').onclick = () => irPara('recusa');
+  ligarTrocaPonto();
   ligarVoltar();
 }
 
@@ -762,10 +871,12 @@ function telaResumo(box, t) {
       <dt>Ponto</dt><dd>${esc(r.ponto_id)} · ${esc(r.ponto_nome)}</dd>
       <dt>Origem</dt><dd>${esc(resumoLocal('origem'))} <small>(nível ${esc(r.origem_nivel || '—')})</small></dd>
       <dt>Destino</dt><dd>${esc(resumoLocal('destino'))} <small>(nível ${esc(r.destino_nivel || '—')})</small></dd>
-      <dt>Modo</dt><dd>${esc(rot('modal', r.modal))}</dd>
-      <dt>Motivo</dt><dd>${esc(rot('motivo', r.motivo))}</dd>
+      <dt>Modo</dt><dd>${esc(rot('modal', r.modal))}${r.acesso_onibus
+        ? ` <small>(acesso: ${esc(rot('acesso_onibus', r.acesso_onibus))})</small>` : ''}</dd>
+      <dt>Motivo</dt><dd>${esc(rot('origem_motivo', r.origem_motivo))} → ${esc(rot('destino_motivo', r.destino_motivo))}</dd>
       <dt>Tempo</dt><dd>${esc(r.tempo_viagem_min ?? '—')} min</dd>
-      <dt>Perfil</dt><dd>${esc(rot('sexo', r.sexo))} · ${esc(rot('faixa_etaria', r.faixa_etaria))} · ${esc(rot('escolaridade', r.escolaridade))}</dd>
+      <dt>Perfil</dt><dd>${esc(rot('sexo', r.sexo))} · ${esc(rot('faixa_etaria', r.faixa_etaria))} · ${esc(rot('escolaridade', r.escolaridade))}${
+        r.entrevistado_tipo === 'comerciante_local' ? ' · <b>comerciante local</b>' : ''}</dd>
     </dl></div>
     <details class="opc"><summary>＋ Opcional (frequência, acompanhantes, observação)</summary>
       <div id="opc-c"></div>
@@ -893,6 +1004,159 @@ async function gravarRecusa(motivo) {
   S.r = null; novaEntrevista();        // <2 s de volta à tela inicial
 }
 
+/* ================================================================ MODO GESTOR (só G01)
+ * Ferramenta de realocação em campo, não BI: o gestor precisa saber, no sol e em 3 s,
+ * quem está atrasado, quem sumiu e qual ponto está furado. Tolerante a offline: mostra
+ * o último quadro salvo com a idade dele em cima, nunca uma tela vazia. */
+async function carregarGestao(manual = false) {
+  if (!S.gestao) S.gestao = (await metaGet('cache_gestao')) || null;
+  if (!API_URL || !S.sessao?.token) return S.gestao;
+  try {
+    const u = `${API_URL}?action=gestao&pesquisador_id=${encodeURIComponent(S.sessao.pesquisador_id)}` +
+              `&token=${encodeURIComponent(S.sessao.token)}`;
+    const r = await fetch(u, { cache: 'no-store' });
+    const j = JSON.parse(await r.text());
+    if (!j.ok) throw new Error(j.erro || 'recusado pelo servidor');
+    S.gestao = { dados: j, em: Date.now() };
+    await metaSet('cache_gestao', S.gestao);
+    if (manual) toast('Quadro atualizado.', 'ok');
+  } catch (e) {
+    if (manual) toast(S.gestao ? 'Sem sinal — mostrando o último quadro.' : 'Sem sinal e sem quadro salvo.', 'erro');
+  }
+  return S.gestao;
+}
+
+const idadeMin = (ms) => Math.max(0, Math.round((Date.now() - ms) / 60000));
+
+/** Clipboard com plano B: se o navegador recusar, o texto fica na tela para copiar à mão. */
+async function copiar(txt) {
+  try {
+    await navigator.clipboard.writeText(txt);
+    toast('Resumo copiado — cole no WhatsApp.', 'ok');
+    return true;
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = txt; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch {}
+    ta.remove();
+    toast(ok ? 'Resumo copiado — cole no WhatsApp.' : 'Copie o texto da caixa abaixo à mão.', ok ? 'ok' : 'erro');
+    return ok;
+  }
+}
+
+/** O reporte dos 3 pulsos diários em 1 toque. */
+function resumoWhatsApp(g) {
+  const t = g.totais, ag = new Date();
+  const hh = `${String(ag.getHours()).padStart(2, '0')}h${String(ag.getMinutes()).padStart(2, '0')}`;
+  const pct = t.meta ? Math.round((t.total / t.meta) * 100) : 0;
+  const equipe = [...g.equipe]
+    .sort((a, b) => a.pesq_id.localeCompare(b.pesq_id))
+    .map((p) => `${p.pesq_id} ${p.hoje}/${p.meta_dia || '—'}`).join(' · ');
+  const ab = t.abaixo_do_piso || [];
+  return `📊 ${hh} — ${t.total}/${t.meta} (${pct}%) · urb ${t.urbano}/${t.meta_urbano} · ` +
+    `rur ${t.rural}/${t.meta_rural} | ${equipe} | pontos ok ${t.pontos_ok} · ` +
+    `abaixo do piso ${t.pontos_abaixo_do_piso}${ab.length ? ` (${ab.join(', ')})` : ''}`;
+}
+
+async function vGestao() {
+  main().innerHTML = '<h2 class="pergunta">Equipe e pontos</h2><p class="dica">Carregando o quadro…</p>';
+  const g = await carregarGestao(false);
+  if (!g) {
+    main().innerHTML = `<h2 class="pergunta">Equipe e pontos</h2>
+      <div class="aviso erro">Sem sinal e sem quadro salvo ainda. Toque em recarregar quando pegar rede.</div>
+      <button class="b-grande" id="g-rec" style="text-align:center">↻ Recarregar</button>
+      <div class="acoes">${btVoltar}</div>`;
+    el('g-rec').onclick = async () => { await carregarGestao(true); vGestao(); };
+    el('bt-voltar').onclick = () => irPara(S.r ? 'entrevista' : 'ponto');
+    return;
+  }
+  pintarGestao(g);
+}
+
+function pintarGestao(g) {
+  const d = g.dados, idade = idadeMin(g.em);
+  const aba = S.gestaoAba || 'equipe';
+  main().innerHTML = `
+    <h2 class="pergunta">Equipe e pontos</h2>
+    <p class="dica">${idade === 0 ? 'agora mesmo' : `atualizado há ${idade} min`} ·
+      ${esc(d.totais.total)}/${esc(d.totais.meta)} no total · hoje ${esc(d.totais.hoje)}</p>
+    <div class="abas" id="g-abas">
+      <button data-t="equipe" aria-selected="${aba === 'equipe'}">Equipe</button>
+      <button data-t="pontos" aria-selected="${aba === 'pontos'}">Pontos (${d.pontos.length})</button>
+    </div>
+    <div id="g-corpo"></div>
+    <div class="acoes" style="margin-top:.8rem">${btVoltar}
+      <button class="b-primario" id="g-rec">↻ Recarregar</button></div>`;
+  main().querySelectorAll('#g-abas button').forEach((b) => b.onclick = () => {
+    S.gestaoAba = b.dataset.t; pintarGestao(g);
+  });
+  el('g-rec').onclick = async () => { const n = await carregarGestao(true); pintarGestao(n || g); };
+  el('bt-voltar').onclick = () => irPara(S.r ? 'entrevista' : 'ponto');
+  (aba === 'equipe' ? corpoEquipe : corpoPontos)(el('g-corpo'), d);
+}
+
+function corpoEquipe(box, d) {
+  /* mais atrasado primeiro: quem está mais longe da própria meta do dia */
+  const eq = [...d.equipe].sort((a, b) => {
+    const pa = a.meta_dia ? a.hoje / a.meta_dia : 1, pb = b.meta_dia ? b.hoje / b.meta_dia : 1;
+    return pa - pb;
+  });
+  box.innerHTML = eq.map((p) => {
+    const sm = p.sync_min;
+    const cls = sm === null || sm > SYNC_ALERTA_MIN ? 'vermelho' : sm > SYNC_ATENCAO_MIN ? 'amarelo' : 'verde';
+    const txt = sm === null ? 'sem contato — ligar'
+      : sm > SYNC_ALERTA_MIN ? `sem contato há ${sm} min — ligar`
+      : `sync há ${sm} min`;
+    return `<div class="cartao">
+      <div class="cartao-t"><b>${esc(p.pesq_id)}</b> <span class="dica">${esc(p.nome)}</span>
+        <span class="m${p.meta_dia && p.hoje >= p.meta_dia ? ' ok' : ''}">hoje ${esc(p.hoje)}/${esc(p.meta_dia || '—')}</span></div>
+      <div class="cartao-s">
+        <span class="gps ${cls}">${esc(txt)}</span>
+        <span class="dica">fila ${esc(p.fila)}</span>
+        <span class="dica">${p.ultimo_ponto ? 'último ponto ' + esc(p.ultimo_ponto) : 'sem entrevista hoje'}</span>
+      </div></div>`;
+  }).join('') + `
+    <button class="b-grande" id="g-copiar" style="text-align:center;margin-top:.6rem">📋 Copiar resumo</button>
+    <textarea id="g-txt" rows="3" readonly hidden></textarea>`;
+  el('g-copiar').onclick = async () => {
+    const txt = resumoWhatsApp(d);
+    const ok = await copiar(txt);
+    const ta = el('g-txt');
+    ta.value = txt; ta.hidden = ok;              // só aparece se o clipboard recusou
+    if (!ok) { ta.focus(); ta.select(); }
+  };
+}
+
+function corpoPontos(box, d) {
+  const ordem = S.gestaoOrdem || 'atraso';
+  const lista = [...d.pontos];
+  if (ordem === 'perto' && S.fix) {
+    const porId = {};
+    ordenarPontosPorDistancia(S.pontos, S.fix).forEach((p) => (porId[p.ponto_id] = p.dist_m));
+    lista.sort((a, b) => (porId[a.ponto_id] ?? 9e9) - (porId[b.ponto_id] ?? 9e9));
+  } else {
+    lista.sort((a, b) => (a.cota ? a.feito / a.cota : 1) - (b.cota ? b.feito / b.cota : 1));
+  }
+  const cls = (s, p) => s === 'abaixo_do_piso' ? 'abaixo'
+    : p.cota && p.feito >= p.cota * 1.3 ? 'cheio' : s === 'ok' ? 'ok' : 'parcial';
+  box.innerHTML = `
+    <div class="abas" id="g-ord">
+      <button data-o="atraso" aria-selected="${ordem === 'atraso'}">Mais atrasado</button>
+      <button data-o="perto" aria-selected="${ordem === 'perto'}">Mais perto</button>
+    </div>
+    ${ordem === 'perto' && !S.fix ? '<div class="aviso">Sem fix de GPS: ordem por atraso.</div>' : ''}
+    <ul class="lista">${lista.map((p) => `<li><div class="item">
+      <span class="n"><b>${esc(p.ponto_id)} · ${esc(p.nome)}</b>
+        <small>${esc(p.tipo)} · piso ${esc(p.piso)}</small></span>
+      <span class="m ${cls(p.status, p)}">${esc(p.feito)}/${esc(p.cota)}</span>
+    </div></li>`).join('')}</ul>`;
+  box.querySelectorAll('#g-ord button').forEach((b) => b.onclick = () => {
+    S.gestaoOrdem = b.dataset.o; corpoPontos(box, d);
+  });
+}
+
 /* ================================================================ fila / ajustes */
 async function vFila() {
   const pend = await itensPendentes();
@@ -949,8 +1213,10 @@ async function boot() {
   }
   S.equipe = (await metaGet('cache_equipe')) || EQUIPE_PADRAO;
   S.sessao = await metaGet('sessao');
+  S.feitoPontos = (await metaGet('feito_pontos')) || null;
   iniciarGps(); ligarSync();
   el('h-menu').onclick = () => irPara('fila');
+  el('h-equipe').onclick = () => irPara('gestao');
   await pintarCabecalho();
 
   if (!S.sessao) return irPara('login');

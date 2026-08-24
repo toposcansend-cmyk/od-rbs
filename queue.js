@@ -122,8 +122,11 @@ export function validar(r, ctx = {}) {
     B('V02', 'Ponto inválido ou inativo.');
 
   const faltando = [];
-  for (const c of ['modal', 'motivo', 'tempo_viagem_min'])
+  for (const c of ['modal', 'origem_motivo', 'destino_motivo', 'tempo_viagem_min'])
     if (r[c] === undefined || r[c] === null || r[c] === '') faltando.push(c);
+  /* v1.0: o acesso ao ônibus só existe como pergunta quando o modo É ônibus */
+  if (r.modal === 'onibus' && (r.acesso_onibus === undefined || r.acesso_onibus === null || r.acesso_onibus === ''))
+    faltando.push('acesso_onibus');
   for (const c of ['sexo', 'faixa_etaria', 'escolaridade'])
     if (r[c] === undefined || r[c] === null || r[c] === '') faltando.push(c); // nao_informado É valor válido
   if (faltando.length) B('V03', 'Faltam respostas obrigatórias: ' + faltando.join(', '));
@@ -184,9 +187,9 @@ export function montarLote(pendentes, max = LOTE_MAX) {
 export function aplicarAck(enviados, resposta) {
   const ids = enviados.map((i) => i.uuid);
   if (!resposta || typeof resposta !== 'object')
-    return { sincronizados: [], mantidos: ids, erro: 'resposta vazia ou não-JSON', schema_version: null };
+    return { sincronizados: [], mantidos: ids, erro: 'resposta vazia ou não-JSON', schema_version: null, feito_pontos: null };
   if (resposta.ok !== true)
-    return { sincronizados: [], mantidos: ids, erro: resposta.erro || 'ok != true', schema_version: resposta.schema_version || null };
+    return { sincronizados: [], mantidos: ids, erro: resposta.erro || 'ok != true', schema_version: resposta.schema_version || null, feito_pontos: null };
 
   const acked = Array.isArray(resposta.acked) ? resposta.acked : [];
   const set = new Set(acked);
@@ -197,6 +200,8 @@ export function aplicarAck(enviados, resposta) {
     mantidos,
     erro: mantidos.length ? `ok:true mas ${mantidos.length} uuid(s) sem ACK — mantidos na fila` : null,
     schema_version: resposta.schema_version || null,
+    feito_pontos: (resposta.feito_pontos && typeof resposta.feito_pontos === 'object')
+      ? resposta.feito_pontos : null,
   };
 }
 
@@ -207,8 +212,8 @@ export function aplicarAck(enviados, resposta) {
 export async function enviarLote({ fetchImpl, url, token, pesquisador_id, device_id,
                                    itens, fila_pendente = 0, app_version = '', timeoutMs = 30000 }) {
   const ids = itens.map((i) => i.uuid);
-  if (!itens.length) return { sincronizados: [], mantidos: [], erro: null, schema_version: null };
-  if (!url) return { sincronizados: [], mantidos: ids, erro: 'API_URL não configurada', schema_version: null };
+  if (!itens.length) return { sincronizados: [], mantidos: [], erro: null, schema_version: null, feito_pontos: null };
+  if (!url) return { sincronizados: [], mantidos: ids, erro: 'API_URL não configurada', schema_version: null, feito_pontos: null };
 
   const corpo = {
     action: 'respostas',
@@ -232,14 +237,50 @@ export async function enviarLote({ fetchImpl, url, token, pesquisador_id, device
       redirect: 'follow',
     });
     if (tm) clearTimeout(tm);
-    if (!r.ok) return { sincronizados: [], mantidos: ids, erro: `HTTP ${r.status}`, schema_version: null };
+    if (!r.ok) return { sincronizados: [], mantidos: ids, erro: `HTTP ${r.status}`, schema_version: null, feito_pontos: null };
     const txt = await r.text();
     try { resp = JSON.parse(txt); }
-    catch { return { sincronizados: [], mantidos: ids, erro: 'resposta não é JSON (login do Google?)', schema_version: null }; }
+    catch { return { sincronizados: [], mantidos: ids, erro: 'resposta não é JSON (login do Google?)', schema_version: null, feito_pontos: null }; }
   } catch (e) {
-    return { sincronizados: [], mantidos: ids, erro: `rede: ${e && e.message ? e.message : e}`, schema_version: null };
+    return { sincronizados: [], mantidos: ids, erro: `rede: ${e && e.message ? e.message : e}`, schema_version: null, feito_pontos: null };
   }
   return aplicarAck(itens, resp);
+}
+
+/* ---------------------------------------------------------------- área certa (v0.9.3)
+ * "Estou no lugar certo?" é pergunta de UM toque, não de mapa. O aparelho já sabe a
+ * distância ao ponto SELECIONADO e qual ponto está mais perto — basta dizer em voz alta.
+ * NUNCA bloqueia: a pessoa pode estar legitimamente a 400 m (ponto grande, obra, chuva). */
+export const RAIO_PONTO_M = 300;
+
+export function avaliarPosicao(fix, selecionado, pontos = [], raio = RAIO_PONTO_M) {
+  const vazio = { dist_m: null, longe: false, sugestao: null };
+  if (!fix || !selecionado || typeof fix.lat !== 'number') return vazio;
+  const dist_m = haversine(fix.lat, fix.lon, selecionado.lat, selecionado.lon);
+  if (dist_m === null) return vazio;
+  const longe = dist_m > raio;
+  let sugestao = null;
+  if (longe) {
+    const perto = ordenarPontosPorDistancia(pontos.filter((p) => p.ativo !== false), fix)[0];
+    /* só sugere se o vizinho for REALMENTE melhor, senão vira ruído a cada fix */
+    if (perto && perto.ponto_id !== selecionado.ponto_id && perto.dist_m !== null && perto.dist_m < dist_m)
+      sugestao = perto;
+  }
+  return { dist_m, longe, sugestao };
+}
+
+/* ---------------------------------------------------------------- cota do ponto (G3)
+ * 100% = pode estender até +30% se o fluxo estiver bom. 130% = está roubando amostra de
+ * outro ponto, migre. Também nunca bloqueia: dado coletado não se joga fora. */
+export const COTA_EXTENSAO = 1.3;
+
+export function avaliarCota(feito, cota) {
+  const c = Number(cota) || 0, f = Number(feito) || 0;
+  if (!c) return { estado: 'sem_cota', pct: 0 };
+  const pct = f / c;
+  if (pct >= COTA_EXTENSAO) return { estado: 'excedida', pct };
+  if (pct >= 1) return { estado: 'completa', pct };
+  return { estado: 'andamento', pct };
 }
 
 /* ---------------------------------------------------------------- fila_espera */

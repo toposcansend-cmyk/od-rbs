@@ -1,8 +1,8 @@
 {
- "schema_version": "0.9",
+ "schema_version": "1.0",
  "titulo": "Pesquisa Origem-Destino — Rio Branco do Sul",
  "subtitulo": "Plano de Mobilidade Urbana",
- "atualizado_em": "2026-08-21",
+ "atualizado_em": "2026-08-24",
  "regras_ui": {
   "fonte_base_px": 18,
   "alvo_min_px": 48,
@@ -59,6 +59,24 @@
   },
   {
    "n": 3,
+   "id": "origem_motivo",
+   "titulo": "O que você estava fazendo lá?",
+   "tipo": "chips",
+   "campo": "origem_motivo",
+   "colunas": 2,
+   "obrigatorio": true,
+   "texto_livre_proibido": true,
+   "opcoes": [
+    { "v": "casa", "r": "Casa", "i": "🏠" },
+    { "v": "estudo", "r": "Estudo", "i": "📚" },
+    { "v": "trabalho", "r": "Trabalho", "i": "💼" },
+    { "v": "saude", "r": "Saúde", "i": "🏥" },
+    { "v": "lazer", "r": "Lazer", "i": "⚽" },
+    { "v": "outro", "r": "Outro", "i": "❓" }
+   ]
+  },
+  {
+   "n": 4,
    "id": "destino",
    "titulo": "Para onde está indo?",
    "tipo": "cascata",
@@ -70,7 +88,25 @@
    ]
   },
   {
-   "n": 4,
+   "n": 5,
+   "id": "destino_motivo",
+   "titulo": "O que vai fazer lá?",
+   "tipo": "chips",
+   "campo": "destino_motivo",
+   "colunas": 2,
+   "obrigatorio": true,
+   "texto_livre_proibido": true,
+   "opcoes": [
+    { "v": "casa", "r": "Casa", "i": "🏠" },
+    { "v": "estudo", "r": "Estudo", "i": "📚" },
+    { "v": "trabalho", "r": "Trabalho", "i": "💼" },
+    { "v": "saude", "r": "Saúde", "i": "🏥" },
+    { "v": "lazer", "r": "Lazer", "i": "⚽" },
+    { "v": "outro", "r": "Outro", "i": "❓" }
+   ]
+  },
+  {
+   "n": 6,
    "id": "modal",
    "titulo": "Como está indo?",
    "tipo": "chips",
@@ -81,40 +117,36 @@
    "opcoes": [
     { "v": "a_pe", "r": "A pé", "i": "🚶" },
     { "v": "bicicleta", "r": "Bicicleta", "i": "🚲" },
+    { "v": "onibus", "r": "Ônibus/Circular", "i": "🚌" },
+    { "v": "transporte_escolar", "r": "Transporte Escolar", "i": "🚐" },
     { "v": "moto", "r": "Moto", "i": "🏍️" },
-    { "v": "carro_motorista", "r": "Carro (dirigindo)", "i": "🚗" },
-    { "v": "carro_carona", "r": "Carro (carona)", "i": "🚙" },
-    { "v": "onibus_urbano", "r": "Ônibus urbano", "i": "🚌" },
-    { "v": "onibus_intermunicipal", "r": "Ônibus intermunicipal", "i": "🚍" },
-    { "v": "onibus_escolar", "r": "Ônibus escolar", "i": "🚐" },
-    { "v": "van_lotacao", "r": "Van / lotação", "i": "🚐" },
-    { "v": "taxi_app", "r": "Táxi / app", "i": "🚕" },
-    { "v": "caminhao_utilitario", "r": "Caminhão / utilitário", "i": "🚚" },
-    { "v": "outro_modal", "r": "Outro", "i": "❓" }
+    { "v": "carro", "r": "Carro", "i": "🚗" },
+    { "v": "carona", "r": "Carona", "i": "🚙" },
+    { "v": "aplicativo", "r": "Aplicativo", "i": "🚕" },
+    { "v": "caminhao", "r": "Caminhão", "i": "🚚" }
    ]
   },
   {
-   "n": 5,
-   "id": "motivo",
-   "titulo": "Por que está fazendo esta viagem?",
+   "n": 7,
+   "id": "acesso_onibus",
+   "titulo": "Como chegou até o ônibus?",
    "tipo": "chips",
-   "campo": "motivo",
+   "campo": "acesso_onibus",
    "colunas": 2,
    "obrigatorio": true,
    "texto_livre_proibido": true,
+   "condicional": "r.modal === 'onibus'",
    "opcoes": [
-    { "v": "trabalho", "r": "Trabalho", "i": "💼" },
-    { "v": "estudo", "r": "Estudo", "i": "📚" },
-    { "v": "saude", "r": "Saúde", "i": "🏥" },
-    { "v": "compras", "r": "Compras", "i": "🛒" },
-    { "v": "servicos", "r": "Serviços / banco", "i": "🏦" },
-    { "v": "lazer", "r": "Lazer / visita", "i": "⚽" },
-    { "v": "religiao", "r": "Religião", "i": "⛪" },
-    { "v": "retorno_casa", "r": "Voltando pra casa", "i": "🏠" }
+    { "v": "a_pe", "r": "A pé", "i": "🚶" },
+    { "v": "bicicleta", "r": "Bicicleta", "i": "🚲" },
+    { "v": "transporte_escolar", "r": "Transporte Escolar", "i": "🚐" },
+    { "v": "moto", "r": "Moto", "i": "🏍️" },
+    { "v": "carro", "r": "Carro", "i": "🚗" },
+    { "v": "carona", "r": "Carona", "i": "🚙" }
    ]
   },
   {
-   "n": 6,
+   "n": 8,
    "id": "tempo",
    "titulo": "Quanto tempo leva essa viagem?",
    "tipo": "chips",
@@ -139,33 +171,31 @@
    ]
   },
   {
-   "n": 7,
-   "id": "trecho",
-   "titulo": "Baldeação",
-   "tipo": "trecho",
-   "condicional": "ponto.transbordo === true",
-   "obrigatorio": false,
-   "campos": [
-    { "campo": "trecho_antes", "rotulo": "Como chegou até aqui?", "usa_opcoes_de": "modal" },
-    { "campo": "trecho_depois", "rotulo": "Como segue daqui?", "usa_opcoes_de": "modal" }
-   ]
-  },
-  {
-   "n": 8,
+   "n": 9,
    "id": "perfil",
    "titulo": "Perfil",
    "tipo": "grupo_chips",
    "obrigatorio": true,
    "grupos": [
     {
+     "campo": "entrevistado_tipo",
+     "rotulo": "Quem é o entrevistado (padrão: circulando)",
+     "colunas": 2,
+     "padrao": "circulando",
+     "opcoes": [
+      { "v": "circulando", "r": "Circulando" },
+      { "v": "comerciante_local", "r": "Comerciante local" }
+     ]
+    },
+    {
      "campo": "sexo",
      "rotulo": "Sexo (observado — não perguntar)",
-     "colunas": 4,
+     "colunas": 2,
      "opcoes": [
-      { "v": "F", "r": "F" },
-      { "v": "M", "r": "M" },
+      { "v": "F", "r": "Feminino" },
+      { "v": "M", "r": "Masculino" },
       { "v": "outro", "r": "Outro" },
-      { "v": "nao_informado", "r": "N/I" }
+      { "v": "nao_informado", "r": "Prefere não responder" }
      ]
     },
     {
@@ -206,7 +236,7 @@
    }
   },
   {
-   "n": 9,
+   "n": 10,
    "id": "salvar",
    "titulo": "Conferir e salvar",
    "tipo": "resumo",
@@ -276,7 +306,7 @@
  "validacoes": [
   { "id": "V01", "campo": "consentimento_verbal", "regra": "igual_true", "acao": "bloqueia", "msg": "Sem consentimento verbal não se salva a entrevista." },
   { "id": "V02", "campo": "ponto_id", "regra": "em_pontos_ativos", "acao": "bloqueia", "msg": "Ponto inválido ou inativo." },
-  { "id": "V03", "campos": ["modal", "motivo", "tempo_viagem_min", "sexo", "faixa_etaria", "escolaridade"], "regra": "preenchidos", "aceita_nao_informado": ["sexo", "faixa_etaria", "escolaridade"], "acao": "bloqueia", "msg": "Faltam respostas obrigatórias." },
+  { "id": "V03", "campos": ["modal", "origem_motivo", "destino_motivo", "tempo_viagem_min", "sexo", "faixa_etaria", "escolaridade"], "regra": "preenchidos", "aceita_nao_informado": ["sexo", "faixa_etaria", "escolaridade"], "exigidos_se": [{ "campo": "acesso_onibus", "quando_campo": "modal", "quando_valor": "onibus" }], "acao": "bloqueia", "msg": "Faltam respostas obrigatórias." },
   { "id": "V04", "campo": "tempo_viagem_min", "regra": "intervalo", "min": 1, "max": 600, "acao": "bloqueia", "msg": "Tempo de viagem deve ficar entre 1 e 600 minutos." },
   { "id": "V05", "campos": ["origem_nivel", "destino_nivel"], "regra": "menor_igual", "valor": 6, "acao": "bloqueia", "msg": "Origem e destino precisam de algum dado (nível 1 a 6)." },
   { "id": "V06", "campo": "abordagem_accuracy_m", "regra": "escada_accuracy", "acao": "escalonada", "msg": "Precisão do GPS baixa." },
@@ -302,7 +332,8 @@
   "destino_zona", "destino_zona_fina",
   "sexo", "faixa_etaria", "idade", "escolaridade", "consentimento_responsavel",
   "consentimento_verbal", "recusa_localizacao", "obs_pesquisador",
-  "qc_flags", "qc_status", "revisado_por", "revisado_em"
+  "qc_flags", "qc_status", "revisado_por", "revisado_em",
+  "acesso_onibus", "origem_motivo", "destino_motivo", "entrevistado_tipo"
  ],
  "colunas_recusas": ["uuid", "ts", "pesquisador_id", "ponto_id", "motivo", "sexo_aprox", "faixa_aprox", "ts_sync", "app_version"],
  "rodape": {

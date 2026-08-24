@@ -1,1 +1,17 @@
-{}
+{
+  "ts_inicio": "Data",
+  "horario_abordagem": "Horário",
+  "ponto_nome": "Local da pesquisa",
+  "modal": "Modo de Transporte",
+  "acesso_onibus": "Caso seja ônibus, qual o Modo de Transporte utilizado para ACESSAR o ônibus",
+  "sexo": "Sexo",
+  "faixa_etaria": "Idade",
+  "escolaridade": "Escolaridade",
+  "origem_logradouro": "Local da Origem",
+  "origem_referencia": "Referência Próxima (origem)",
+  "origem_motivo": "Motivo da Origem",
+  "tempo_viagem_min": "Tempo da Viagem",
+  "destino_logradouro": "Local do Destino",
+  "destino_referencia": "Referência Próxima (destino)",
+  "destino_motivo": "Motivo do Destino"
+}
