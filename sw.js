@@ -6,8 +6,16 @@
  *      e os aparelhos verem na terça SEM reinstalar — §7.7)
  *   - POST para a API ........................ nunca passa pelo cache
  */
-const VERSAO = new URL(self.location).searchParams.get('v') || '0.0.0';
-const CACHE = `od-rbs-v${VERSAO}`;
+/* BUILD — TEM de mudar a cada release e bater com APP_VERSION do config.js.
+ * É a mudança DESTE ARQUIVO que faz o navegador instalar um Service Worker novo: ele
+ * compara o sw.js byte a byte. Subir só o APP_VERSION não atualiza nada — index.html,
+ * app.js e config.js são cache-first, então o aparelho continuaria rodando o código
+ * velho enquanto o schema.json (network-first) já teria mudado. Foi exatamente o que
+ * aconteceu no 0.9.2 → 1.0: "app 0.9.2 · schema 1.0", e o V03 velho bloqueava todo
+ * salvamento pedindo um campo `motivo` que o questionário novo não tem mais.
+ * O test/fila_test.mjs falha se este número divergir do config.js. */
+const BUILD = '0.9.3';
+const CACHE = `od-rbs-v${BUILD}`;
 
 const SHELL = [
   './', './index.html', './app.js', './queue.js', './config.js', './style.css',
@@ -24,10 +32,13 @@ const ehFresco = (url) => FRESCOS.some((f) => url.pathname.endsWith(f));
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(CACHE);
+    /* cache:'reload' fura o cache HTTP do navegador (o Pages serve com max-age): sem isto
+       o SW novo poderia re-gravar o app.js VELHO e a atualização não valeria de nada */
+    const doZero = (u) => new Request(u, { cache: 'reload' });
     // addAll é tudo-ou-nada; aqui um 404 isolado não pode derrubar a instalação
-    await Promise.all(SHELL.map((u) => c.add(u).catch((err) => console.warn('[sw] falhou', u, err))));
+    await Promise.all(SHELL.map((u) => c.add(doZero(u)).catch((err) => console.warn('[sw] falhou', u, err))));
     // pré-aquece os frescos, mas sem depender deles
-    await Promise.all(FRESCOS.map((u) => c.add('.' + u).catch(() => {})));
+    await Promise.all(FRESCOS.map((u) => c.add(doZero('.' + u)).catch(() => {})));
     await self.skipWaiting();
   })());
 });
@@ -35,8 +46,18 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil((async () => {
     const nomes = await caches.keys();
-    await Promise.all(nomes.filter((n) => n.startsWith('od-rbs-v') && n !== CACHE).map((n) => caches.delete(n)));
+    const antigos = nomes.filter((n) => n.startsWith('od-rbs-v') && n !== CACHE);
+    await Promise.all(antigos.map((n) => caches.delete(n)));
     await self.clients.claim();
+    /* Havia versão anterior => a aba aberta ainda está rodando o CÓDIGO VELHO (o JS já
+       foi avaliado; trocar o cache não troca o que está na memória). Com o schema sendo
+       network-first, código velho + questionário novo = app que não salva. Recarrega.
+       Só na ATUALIZAÇÃO: em instalação limpa (antigos = []) não há nada para recarregar.
+       A fila mora no IndexedDB — recarregar não perde nada já salvo. */
+    if (antigos.length) {
+      const cls = await self.clients.matchAll({ type: 'window' });
+      for (const c of cls) { try { await c.navigate(c.url); } catch (e) { /* aba ocupada: pega no próximo abrir */ } }
+    }
   })());
 });
 
