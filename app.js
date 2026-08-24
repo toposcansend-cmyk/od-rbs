@@ -258,48 +258,49 @@ function render() {
   }
 }
 
-/* ================================================================ LOGIN (uma vez, com sinal) */
+/* ================================================================ LOGIN (uma vez, com sinal)
+ * SEM TOKEN NA TELA (decisão do dono, 24/08: equipe inexperiente, zero fricção).
+ * O token continua existindo por baixo: o servidor o entrega no 1º login
+ * (action login_simples) e o app o envia em todo lote — o humano nunca o vê. */
 function vLogin() {
   el('hdr').hidden = true;
   main().innerHTML = `
     <h1>Pesquisa Origem-Destino<br>Rio Branco do Sul</h1>
-    <p class="dica">Login uma única vez, com sinal. Depois o aplicativo <b>nunca mais pede</b> —
-    funciona em modo avião até ${esc(TOKEN_VALIDADE.split('-').reverse().join('/'))}.</p>
-    <label for="l-nome">Quem é você?</label>
-    <select id="l-nome"><option value="">— selecione —</option></select>
-    <label for="l-token">Token (entregue no treinamento)</label>
-    <input id="l-token" type="text" inputmode="text" autocapitalize="off" autocomplete="off"
-           spellcheck="false" placeholder="cole ou digite o token">
-    <div class="acoes"><button id="l-ok" class="b-primario">Entrar</button></div>
+    <p class="dica">Toque no seu nome e depois em <b>Começar</b>. É só na primeira vez —
+    depois o aplicativo funciona até sem internet.</p>
+    <div id="l-lista" class="lista-nomes"></div>
+    <div class="acoes"><button id="l-ok" class="b-primario" disabled>Começar</button></div>
     <div id="l-msg"></div>
     <p class="dica" style="margin-top:1.2rem">Versão ${esc(APP_VERSION)} · schema ${esc(S.schema?.schema_version || '—')}</p>`;
 
-  const sel = el('l-nome');
+  const lista = el('l-lista'); let escolhido = '';
   (S.equipe || []).forEach((p) => {
-    const o = document.createElement('option'); o.value = p.pesq_id;
-    o.textContent = `${p.pesq_id} — ${p.nome}`; sel.appendChild(o);
+    const b = document.createElement('button'); b.type = 'button';
+    b.innerHTML = `${esc(p.nome)}<span class="sub">${esc(p.pesq_id)}</span>`;
+    b.onclick = () => {
+      escolhido = p.pesq_id;
+      [...lista.children].forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel'); el('l-ok').disabled = false;
+    };
+    lista.appendChild(b);
   });
-  if (!S.equipe?.length) {
-    sel.insertAdjacentHTML('beforeend', '<option value="__manual__">— digitar o código (offline) —</option>');
-  }
 
   el('l-ok').onclick = async () => {
-    const id = sel.value, token = el('l-token').value.trim();
     const msg = el('l-msg');
-    if (!id) { msg.innerHTML = '<div class="aviso erro">Selecione o seu nome.</div>'; return; }
-    if (token.length < 12) { msg.innerHTML = '<div class="aviso erro">Token muito curto — confira com o coordenador.</div>'; return; }
+    if (!escolhido) { msg.innerHTML = '<div class="aviso erro">Toque no seu nome primeiro.</div>'; return; }
     if (!API_URL) { msg.innerHTML = '<div class="aviso erro">API_URL não configurada neste build (ver DEPLOY.md).</div>'; return; }
-    msg.innerHTML = '<div class="aviso">Validando com o servidor…</div>';
+    el('l-ok').disabled = true;
+    msg.innerHTML = '<div class="aviso">Entrando…</div>';
     try {
       const r = await fetch(API_URL, {
         method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'login', pesquisador_id: id, token, app_version: APP_VERSION,
-                               device_id: await deviceId() }),
+        body: JSON.stringify({ action: 'login_simples', pesquisador_id: escolhido,
+                               app_version: APP_VERSION, device_id: await deviceId() }),
       });
       const j = JSON.parse(await r.text());
-      if (!j.ok) { msg.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Token recusado.')}</div>`; return; }
+      if (!j.ok) { el('l-ok').disabled = false; msg.innerHTML = `<div class="aviso erro">${esc(j.erro || 'Não deu para entrar — chame o coordenador.')}</div>`; return; }
       S.sessao = {
-        pesquisador_id: j.pesquisador_id, nome: j.nome, token,
+        pesquisador_id: j.pesquisador_id, nome: j.nome, token: j.token,
         validade: j.token_validade, meta_dia: j.meta_dia, device_id: await deviceId(),
         entrou_em: new Date().toISOString(),
       };
@@ -307,7 +308,8 @@ function vLogin() {
       toast(`Bem-vindo(a), ${j.nome}.`, 'ok');
       await pintarCabecalho(); irPara('ponto');
     } catch (e) {
-      msg.innerHTML = `<div class="aviso erro">Sem resposta do servidor. O login precisa de internet — faça no treinamento.<br><small>${esc(e.message)}</small></div>`;
+      el('l-ok').disabled = false;
+      msg.innerHTML = `<div class="aviso erro">Sem internet agora. A primeira entrada precisa de sinal — depois nunca mais.<br><small>${esc(e.message)}</small></div>`;
     }
   };
 }

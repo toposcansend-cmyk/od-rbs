@@ -2,6 +2,11 @@
    Regras travadas (§7.5): fonte base 18px, alvos >=48px, TEMA CLARO FORCADO,
    zero scroll horizontal, botao Voltar grande em toda tela. */
 
+/* O atributo `hidden` vem da folha do NAVEGADOR; qualquer regra nossa com
+   `display` (ex.: .modal{display:flex}) o anula. Esta linha devolve a palavra
+   final ao atributo — sem ela o modal vazio cobre a tela no iPhone (24/08). */
+[hidden] { display: none !important; }
+
 :root {
   color-scheme: light;            /* nunca herda dark mode do aparelho */
   --verde: #0b5c3f;
@@ -168,6 +173,16 @@ details.opc summary { font-weight: 700; color: var(--cinza); cursor: pointer; mi
 .aviso.erro { border-color: var(--erro); background: #fef2f2; }
 .aviso.ok { border-color: var(--ok); background: var(--verde-claro); }
 .aviso ul { margin: .3rem 0 0; padding-left: 1.1rem; }
+
+/* ------------------------------------------------------------ login: nomes */
+.lista-nomes { display: flex; flex-direction: column; gap: .7rem; margin: .4rem 0 1rem; }
+.lista-nomes button {
+  min-height: 60px; font-size: 20px; font-weight: 700; text-align: left;
+  padding: .8rem 1.1rem; border: 2px solid var(--linha); border-radius: 14px;
+  background: var(--fundo); color: var(--tinta); width: 100%;
+}
+.lista-nomes button .sub { display: block; font-size: 15px; font-weight: 400; color: var(--cinza); }
+.lista-nomes button.sel { border-color: var(--verde); background: var(--verde-claro); }
 
 /* ------------------------------------------------------------ toast */
 #toast {
