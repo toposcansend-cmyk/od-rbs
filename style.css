@@ -1,4 +1,4 @@
-/* style.css — tela sob sol, em pé, na rua.
+﻿/* style.css — tela sob sol, em pé, na rua.
    Regras travadas (§7.5): fonte base 18px, alvos >=48px, TEMA CLARO FORCADO,
    zero scroll horizontal, botao Voltar grande em toda tela. */
 
@@ -35,7 +35,11 @@ html, body {
   overscroll-behavior-y: contain;
   -webkit-text-size-adjust: 100%;
 }
-body { display: flex; flex-direction: column; min-height: 100svh; }
+/* 100dvh (com fallback svh): a barra do Safari/Chrome no pé da tela é DINÂMICA e,
+   com svh, cobria o fim de todas as páginas — "a última página não rola" (Luiz e
+   Danielle, 24/08 19h44, vídeo). A folga extra no #main garante que o último botão
+   respira acima da barra em qualquer navegador. */
+body { display: flex; flex-direction: column; min-height: 100svh; min-height: 100dvh; }
 
 /* ------------------------------------------------------------ cabecalho (tela 0) */
 #hdr {
@@ -71,7 +75,7 @@ body { display: flex; flex-direction: column; min-height: 100svh; }
 @keyframes gira { to { transform: rotate(360deg); } }
 
 /* ------------------------------------------------------------ main */
-#main { flex: 1 1 auto; padding: .8rem .8rem 1rem; max-width: 720px; width: 100%; margin: 0 auto; }
+#main { flex: 1 1 auto; padding: .8rem .8rem calc(4.5rem + env(safe-area-inset-bottom)); max-width: 720px; width: 100%; margin: 0 auto; }
 h1 { font-size: 24px; margin: .2rem 0 .8rem; line-height: 1.2; }
 h2.pergunta { font-size: 23px; font-weight: 700; margin: .2rem 0 .9rem; line-height: 1.22; }
 h3 { font-size: 17px; margin: 1rem 0 .45rem; color: var(--cinza); font-weight: 700;
@@ -96,7 +100,7 @@ button:active, .btn:active { transform: scale(.985); }
 .acoes { display: flex; gap: .6rem; margin-top: 1rem; }
 .acoes > * { flex: 1; }
 .rodape-acao { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--fundo) 25%);
-               padding-top: .8rem; padding-bottom: max(.4rem, env(safe-area-inset-bottom)); }
+               padding-top: .8rem; padding-bottom: max(1rem, calc(env(safe-area-inset-bottom) + .6rem)); }
 
 /* ------------------------------------------------------------ chips */
 .chips { display: grid; gap: .5rem; }

@@ -116,10 +116,12 @@ function comoInstalar() {
     titulo: 'Deixar o app na tela inicial',
     corpo: ios
       ? `<ol class="passos">
-           <li>Toque no botão <b>Compartilhar</b> <span class="ic-p">⬆️</span> — fica embaixo, no meio da tela.</li>
+           <li>Ache o botão <b>Compartilhar</b> <span class="ic-p">⬆️</span> (quadrado com seta pra cima).
+               Não achou na barra? Toque nos <b>três pontinhos ⋯</b> no canto de baixo —
+               o Compartilhar está lá dentro.</li>
            <li>Role a lista e toque em <b>Adicionar à Tela de Início</b>.</li>
            <li>Toque em <b>Adicionar</b>, no canto de cima.</li>
-         </ol><p class="dica">Depois disso o ícone fica junto dos outros aplicativos.</p>`
+         </ol><p class="dica">Depois disso o ícone fica junto dos outros aplicativos — abra sempre por ele.</p>`
       : `<ol class="passos">
            <li>Toque nos <b>três pontinhos</b> <span class="ic-p">⋮</span> no canto de cima.</li>
            <li>Toque em <b>Instalar aplicativo</b> (ou <b>Adicionar à tela inicial</b>).</li>
