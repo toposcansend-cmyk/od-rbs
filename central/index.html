@@ -237,7 +237,7 @@ table.linhas .lug{max-width:230px}
   <!-- portão: o token do gestor NUNCA vem da URL; é trocado pelo PIN e vive só nesta aba -->
   <div class="gate" id="gate">
     <h2>Linhas de hoje — acesso do gestor</h2>
-    <p>Esta aba mostra as entrevistas <b>linha a linha</b>.<br>Digite o <b>PIN do gestor</b> (G01).</p>
+    <p>Esta aba mostra as entrevistas <b>linha a linha</b>.<br>Digite o seu <b>PIN de 4 dígitos</b> (diretor ou gestor de campo).</p>
     <div class="pinvis" id="pinvis">····</div>
     <div class="teclado" id="teclado">
       <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
@@ -553,7 +553,20 @@ agendar();
  *  - a chamada é POST: token de gestor não entra em histórico, log de proxy nem link;
  *  - o servidor devolve 25 das 68 colunas: sem coordenada, sem device, sem observação.
  */
-const D = { token: sessionStorage.getItem('od_central_g01') || '', linhas: null, meta: null,
+/* Dois perfis distintos, tokens SEPARADOS (a auditoria precisa saber quem olhou):
+ * o DIRETOR (dono) e o G01 (gestor de campo). Quem digita não escolhe perfil — são 4
+ * dígitos e pronto; tenta o diretor primeiro e cai para o G01. Erro idêntico nos dois:
+ * a tela não conta a ninguém quais PINs existem. */
+const K_DIR = 'od_central_diretor', K_G01 = 'od_central_g01';
+function credGuardada() {
+  const d = sessionStorage.getItem(K_DIR); if (d) return { papel: 'diretor', token: d };
+  const g = sessionStorage.getItem(K_G01); if (g) return { papel: 'G01', token: g };
+  return null;
+}
+const corpoAuth = (c) => c.papel === 'diretor'
+  ? { diretor: c.token } : { pesquisador_id: 'G01', token: c.token };
+
+const D = { cred: credGuardada(), linhas: null, meta: null,
             buscadoEm: 0, timer: null, pin: '', ocupado: false };
 
 async function apiPost(corpo) {
@@ -697,10 +710,10 @@ function tabelaLinhas(L) {
 
 /* ── rede da aba */
 async function carregarLinhas() {
-  if (!D.token || D.ocupado) return;
+  if (!D.cred || D.ocupado) return;
   D.ocupado = true;
   try {
-    const j = await apiPost({ action: 'linhas_hoje', pesquisador_id: 'G01', token: D.token });
+    const j = await apiPost({ action: 'linhas_hoje', ...corpoAuth(D.cred) });
     if (!j.ok) {
       if (/token/i.test(j.erro || '')) { travarDados('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
       $('dados-erro').innerHTML = `<div class="erro">${esc(j.erro || 'a API recusou a consulta.')}</div>`;
@@ -711,7 +724,8 @@ async function carregarLinhas() {
     conformidade(D.linhas, j);
     tabelaLinhas(D.linhas);
     $('tit-linhas').textContent = `Linhas de hoje — ${num(j.servidas)} de ${num(j.total)}, mais recente primeiro`;
-    $('dados-ver').textContent = `servidor: ${j.gerado_em || '—'} · schema ${j.schema_version || '—'} · dia ${j.data_hoje || '—'}`;
+    $('dados-ver').textContent = `servidor: ${j.gerado_em || '—'} · schema ${j.schema_version || '—'} · dia ${
+      j.data_hoje || '—'} · acesso: ${j.papel === 'diretor' ? 'diretor' : 'gestor de campo · G01'}`;
   } catch (e) {
     $('dados-erro').innerHTML = `<div class="erro">Falha ao consultar a API: ${esc(e.message)} — a tabela abaixo é a da última leitura.</div>`;
   } finally { D.ocupado = false; tiqueDados(); }
@@ -731,21 +745,27 @@ function msgGate(t, ruim) { const e = $('gate-msg'); e.textContent = t || ''; e.
 
 async function tentarPin() {
   if (D.pin.length !== 4) { msgGate('O PIN tem 4 dígitos.', true); return; }
+  const pin = D.pin;
   msgGate('conferindo…');
   try {
-    /* sem_heartbeat: destravar a Central não pode carimbar o ultimo_sync do G01 — a tela
-       passaria a jurar que ele está sincronizando com o celular dele parado no bolso. */
-    const j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin: D.pin, sem_heartbeat: true });
-    if (!j.ok || !j.token) { D.pin = ''; pintarPin(); msgGate(j.erro || 'PIN não confere. Tente de novo.', true); return; }
-    D.token = j.token; sessionStorage.setItem('od_central_g01', j.token);
+    /* 1) diretor (dono). 2) G01 do campo. */
+    let j = await apiPost({ action: 'login_diretor', pin });
+    if (j.ok && j.token) { D.cred = { papel: 'diretor', token: j.token }; sessionStorage.setItem(K_DIR, j.token); }
+    else {
+      /* sem_heartbeat: destravar a Central não pode carimbar o ultimo_sync do G01 — a tela
+         passaria a jurar que ele está sincronizando com o celular dele parado no bolso. */
+      j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin, sem_heartbeat: true });
+      if (!j.ok || !j.token) { D.pin = ''; pintarPin(); msgGate('PIN não confere. Tente de novo.', true); return; }
+      D.cred = { papel: 'G01', token: j.token }; sessionStorage.setItem(K_G01, j.token);
+    }
     D.pin = ''; pintarPin(); msgGate('');
     abrirDados();
   } catch (e) { msgGate('Sem resposta da API: ' + e.message, true); }
 }
 
 function travarDados(motivo) {
-  D.token = ''; D.linhas = null; D.buscadoEm = 0;
-  sessionStorage.removeItem('od_central_g01');
+  D.cred = null; D.linhas = null; D.buscadoEm = 0;
+  sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(D.timer); D.timer = null;
   $('gate').hidden = false; $('dados-conteudo').hidden = true;
   D.pin = ''; pintarPin(); msgGate(motivo || '', !!motivo);
@@ -753,7 +773,7 @@ function travarDados(motivo) {
 
 function abrirDados() {
   clearInterval(D.timer);
-  if (!D.token) { $('gate').hidden = false; $('dados-conteudo').hidden = true; pintarPin(); return; }
+  if (!D.cred) { $('gate').hidden = false; $('dados-conteudo').hidden = true; pintarPin(); return; }
   $('gate').hidden = true; $('dados-conteudo').hidden = false;
   tiqueDados();
   if (!D.linhas || Date.now() - D.buscadoEm > 120000) carregarLinhas();
@@ -792,7 +812,7 @@ function irPara(nome) {
 $('ab-visao').onclick = () => irPara('visao');
 $('ab-dados').onclick = () => irPara('dados');
 pintarPin();
-setInterval(() => { if (abaAtual === 'dados' && D.token) tiqueDados(); }, 1000);
+setInterval(() => { if (abaAtual === 'dados' && D.cred) tiqueDados(); }, 1000);
 
 /* A Central é uma tela AO VIVO: o Service Worker do app é cache-first para tudo que não é
    `fresco`, então esta página se auto-desaloja do cache para a próxima visita vir da rede. */

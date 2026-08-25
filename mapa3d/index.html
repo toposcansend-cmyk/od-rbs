@@ -129,7 +129,7 @@ button:hover,select:hover{border-color:var(--txt3)}
     </select>
     <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
     <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
-    <button id="btn-travar" type="button" title="Esquecer o acesso do gestor nesta aba">🔒</button>
+    <button id="btn-travar" type="button" title="Esquecer o acesso nesta aba">🔒</button>
   </div>
 </div>
 
@@ -153,12 +153,12 @@ button:hover,select:hover{border-color:var(--txt3)}
   <div class="nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b></div>
 </div>
 
-<div id="rodape"><span class="rj">arcos individuais — uso interno</span> · o produto final ao cliente é agregado por zona</div>
+<div id="rodape"><span class="rj">arcos individuais — uso interno</span> · o produto final ao cliente é agregado por zona · acesso: <b id="quem">—</b></div>
 
 <div id="gate">
   <div class="caixa">
-    <h2>Mapa 3D ao vivo — acesso do gestor</h2>
-    <p>Esta tela desenha as entrevistas <b>uma a uma</b>, com coordenada de origem e destino.<br>Digite o <b>PIN do gestor</b> (G01).</p>
+    <h2>Mapa 3D ao vivo — acesso restrito</h2>
+    <p>Esta tela desenha as entrevistas <b>uma a uma</b>, com coordenada de origem e destino.<br>Digite o seu <b>PIN de 4 dígitos</b> (diretor ou gestor de campo).</p>
     <div class="pinvis" id="pinvis">····</div>
     <div class="teclado" id="teclado">
       <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
@@ -212,9 +212,24 @@ const mapaDe = (lista) => { const m = {}; lista.forEach(([k, , c]) => { m[k] = c
 const COR = { periodo: mapaDe(PERIODO), modal: mapaDe(MODAL) };
 const NOME = {}; [...PERIODO, ...MODAL].forEach(([k, r]) => { NOME[k] = r; });
 
+/* ═══ credencial ════════════════════════════════════════════════════════════════
+ * Dois perfis distintos abrem esta tela, com tokens SEPARADOS (a auditoria precisa
+ * saber quem olhou): o DIRETOR (dono) e o G01 (gestor de campo). Quem digita não
+ * escolhe perfil — são 4 dígitos e pronto; o cliente tenta o diretor primeiro e cai
+ * para o G01. Mensagem de erro idêntica nos dois: a tela não conta quais PINs existem. */
+const K_DIR = 'od_central_diretor', K_G01 = 'od_central_g01';
+function credGuardada() {
+  const d = sessionStorage.getItem(K_DIR); if (d) return { papel: 'diretor', token: d };
+  const g = sessionStorage.getItem(K_G01); if (g) return { papel: 'G01', token: g };
+  return null;
+}
+/* o corpo de autenticação de cada consulta muda com o perfil, o resto não */
+const corpoAuth = (c) => c.papel === 'diretor'
+  ? { diretor: c.token } : { pesquisador_id: 'G01', token: c.token };
+
 /* ═══ estado ════════════════════════════════════════════════════════════════════ */
 const S = {
-  token: sessionStorage.getItem('od_central_g01') || '',
+  cred: credGuardada(),
   pin: '', ocupado: false, buscadoEm: 0, erro: '',
   bruto: null, arcos: [], resumo: null, modo: 'periodo',
   vistos: new Map(),        // chave da leitura -> instante em que ESTE cliente a viu
@@ -234,10 +249,10 @@ async function apiPost(corpo) {
 }
 
 async function buscar() {
-  if (!S.token || S.ocupado) return;
+  if (!S.cred || S.ocupado) return;
   S.ocupado = true;
   try {
-    const j = await apiPost({ action: 'arcos_hoje', pesquisador_id: 'G01', token: S.token });
+    const j = await apiPost({ action: 'arcos_hoje', ...corpoAuth(S.cred) });
     if (!j.ok) {
       if (/token/i.test(j.erro || '')) { travar('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
       S.erro = j.erro || 'a API recusou a consulta.'; pintarErro(); return;
@@ -248,6 +263,7 @@ async function buscar() {
     desenhar();
     pintarContador();
     $('dia').textContent = `${j.data_hoje} · um arco por entrevista · origem → destino`;
+    $('quem').textContent = j.papel === 'diretor' ? 'diretor' : 'gestor de campo · G01';
     document.title = `${j.total} leituras — Mapa 3D OD RBS`;
   } catch (e) {
     S.erro = 'Falha ao consultar a API: ' + e.message + ' — o mapa abaixo é o da última leitura.';
@@ -505,21 +521,27 @@ function msgGate(t, ruim) { const e = $('gate-msg'); e.textContent = t || ''; e.
 
 async function tentarPin() {
   if (S.pin.length !== 4) { msgGate('O PIN tem 4 dígitos.', true); return; }
+  const pin = S.pin;
   msgGate('conferindo…');
   try {
-    /* sem_heartbeat: abrir a vitrine não pode carimbar o ultimo_sync do G01 — a Central
-       passaria a jurar que ele está sincronizando com o celular parado no bolso. */
-    const j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin: S.pin, sem_heartbeat: true });
-    if (!j.ok || !j.token) { S.pin = ''; pintarPin(); msgGate(j.erro || 'PIN não confere. Tente de novo.', true); return; }
-    S.token = j.token; sessionStorage.setItem('od_central_g01', j.token);
+    /* 1) diretor (dono). 2) G01 do campo. Quem digita não escolhe perfil. */
+    let j = await apiPost({ action: 'login_diretor', pin });
+    if (j.ok && j.token) { S.cred = { papel: 'diretor', token: j.token }; sessionStorage.setItem(K_DIR, j.token); }
+    else {
+      /* sem_heartbeat: abrir a vitrine não pode carimbar o ultimo_sync do G01 — a Central
+         passaria a jurar que ele está sincronizando com o celular parado no bolso. */
+      j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin, sem_heartbeat: true });
+      if (!j.ok || !j.token) { S.pin = ''; pintarPin(); msgGate('PIN não confere. Tente de novo.', true); return; }
+      S.cred = { papel: 'G01', token: j.token }; sessionStorage.setItem(K_G01, j.token);
+    }
     S.pin = ''; pintarPin(); msgGate('');
     abrir();
   } catch (e) { msgGate('Sem resposta da API: ' + e.message, true); }
 }
 
 function travar(motivo) {
-  S.token = ''; S.arcos = []; S.resumo = null; S.buscadoEm = 0;
-  sessionStorage.removeItem('od_central_g01');
+  S.cred = null; S.arcos = []; S.resumo = null; S.buscadoEm = 0;
+  sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(S.timer); S.timer = null;
   desenhar(); tique();
   $('gate').hidden = false; S.pin = ''; pintarPin(); msgGate(motivo || '', !!motivo);
@@ -552,7 +574,7 @@ $('modo').onchange = (ev) => { S.modo = ev.target.value; S.anim++; desenhar(); p
 $('btn-agora').onclick = buscar;
 $('btn-travar').onclick = () => travar('Acesso travado. Digite o PIN para voltar.');
 $('btn-vista').onclick = () => { S.vista = enquadrar(); S.deck.setProps({ initialViewState: { ...S.vista, transitionDuration: 700 } }); };
-document.addEventListener('visibilitychange', () => { if (!document.hidden && S.token) buscar(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.cred) buscar(); });
 
 /* ═══ 9. Arranque ═══════════════════════════════════════════════════════════════ */
 await carregarBase();
@@ -560,7 +582,7 @@ iniciarDeck();
 pintarPin();
 setInterval(tique, 1000); tique();
 requestAnimationFrame(quadro);
-if (S.token) abrir(); else $('gate').hidden = false;
+if (S.cred) abrir(); else $('gate').hidden = false;
 
 /* Tela AO VIVO: o Service Worker do app é cache-first para tudo que não é `fresco`,
    então esta página se auto-desaloja do cache para a próxima visita vir da rede.
