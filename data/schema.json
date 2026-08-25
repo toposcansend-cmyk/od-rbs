@@ -89,8 +89,8 @@
    "prefixo": "destino",
    "obrigatorio": true,
    "atalhos": [
-    { "id": "copiar_origem", "rotulo": "Copiar origem" },
-    { "id": "minha_casa", "rotulo": "É a minha casa" }
+    { "id": "copiar_origem", "rotulo": "É uma volta: destino = origem" },
+    { "id": "minha_casa", "rotulo": "É a minha casa — agora diga a rua" }
    ]
   },
   {
@@ -286,7 +286,7 @@
  ],
  "cascata": {
   "botoes": [
-   { "id": "gps_perto", "rotulo": "Estou vindo daqui perto", "rotulo_destino": "Vou aqui perto", "nivel": 1, "metodo": "gps_entrevistado", "precisao_m": 10, "i": "📍" },
+   { "id": "gps_perto", "rotulo": "Estou vindo daqui perto", "rotulo_destino": "Vou aqui do lado (a pé, ≤ 2 quadras)", "nivel": 1, "metodo": "gps_entrevistado", "precisao_m": 10, "i": "📍" },
    { "id": "buscar_via", "rotulo": "Buscar rua…", "nivel": 3, "metodo": "autocomplete_via", "precisao_m": 150, "i": "🔎" },
    { "id": "poi", "rotulo": "Ponto de referência", "nivel": 4, "metodo": "poi", "precisao_m": 120, "i": "🏫" },
    { "id": "mapa", "rotulo": "Marcar no mapa", "nivel": 1, "metodo": "pin_mapa", "precisao_m": 10, "i": "🗺️" },
