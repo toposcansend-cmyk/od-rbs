@@ -715,10 +715,20 @@ async function carregarLinhas() {
   try {
     const j = await apiPost({ action: 'linhas_hoje', ...corpoAuth(D.cred) });
     if (!j.ok) {
-      if (/token/i.test(j.erro || '')) { travarDados('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
+      /* ACHADO 25/08, ao vivo no mapa 3D: um poll isolado voltou recusado e a tela se
+         trancou sozinha. Uma recusa ISOLADA não pode custar a sessão — só a SEGUNDA
+         seguida tranca. E quem decide é o campo `auth` do servidor, não a busca pela
+         palavra "token" no texto em português, que quebra ao reescrever a mensagem. */
+      if (j.auth === false) {
+        D.falhasAuth++;
+        if (D.falhasAuth >= 2) { travarDados('O acesso expirou. Digite o PIN de novo.'); return; }
+        $('dados-erro').innerHTML = '<div class="erro">A API recusou a credencial nesta leitura — nova tentativa em 2 min. A tabela abaixo é a da última leitura boa.</div>';
+        return;
+      }
       $('dados-erro').innerHTML = `<div class="erro">${esc(j.erro || 'a API recusou a consulta.')}</div>`;
       return;
     }
+    D.falhasAuth = 0;
     $('dados-erro').innerHTML = '';
     D.linhas = j.linhas || []; D.meta = j; D.buscadoEm = Date.now();
     conformidade(D.linhas, j);
@@ -764,7 +774,7 @@ async function tentarPin() {
 }
 
 function travarDados(motivo) {
-  D.cred = null; D.linhas = null; D.buscadoEm = 0;
+  D.cred = null; D.falhasAuth = 0; D.linhas = null; D.buscadoEm = 0;
   sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(D.timer); D.timer = null;
   $('gate').hidden = false; $('dados-conteudo').hidden = true;

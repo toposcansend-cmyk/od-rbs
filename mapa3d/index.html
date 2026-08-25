@@ -230,7 +230,7 @@ const corpoAuth = (c) => c.papel === 'diretor'
 /* ═══ estado ════════════════════════════════════════════════════════════════════ */
 const S = {
   cred: credGuardada(),
-  pin: '', ocupado: false, buscadoEm: 0, erro: '',
+  pin: '', ocupado: false, buscadoEm: 0, erro: '', falhasAuth: 0,
   bruto: null, arcos: [], resumo: null, modo: 'periodo',
   vistos: new Map(),        // chave da leitura -> instante em que ESTE cliente a viu
   primeiraCarga: true,      // a 1ª leva não pisca: seriam 121 flashes de uma vez
@@ -254,9 +254,21 @@ async function buscar() {
   try {
     const j = await apiPost({ action: 'arcos_hoje', ...corpoAuth(S.cred) });
     if (!j.ok) {
-      if (/token/i.test(j.erro || '')) { travar('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
+      /* ACHADO 25/08, ao vivo: um poll isolado voltou recusado e a tela se trancou
+       * sozinha — o dono voltaria para um teclado numérico em vez do mapa. Esta é uma
+       * tela para ficar LIGADA numa parede; uma recusa isolada não pode custar a
+       * sessão. Só a SEGUNDA recusa seguida de autenticação tranca. E a decisão agora
+       * é do campo `auth` do servidor, não de procurar a palavra "token" no texto do
+       * erro em português — heurística que quebra ao reescrever uma mensagem.        */
+      if (j.auth === false) {
+        S.falhasAuth++;
+        if (S.falhasAuth >= 2) { travar('O acesso expirou. Digite o PIN de novo.'); return; }
+        S.erro = 'A API recusou a credencial nesta leitura — nova tentativa em 60 s. O mapa abaixo é o da última leitura boa.';
+        pintarErro(); return;
+      }
       S.erro = j.erro || 'a API recusou a consulta.'; pintarErro(); return;
     }
+    S.falhasAuth = 0;
     S.erro = ''; pintarErro();
     S.bruto = j; S.buscadoEm = Date.now();
     montarArcos(j);
