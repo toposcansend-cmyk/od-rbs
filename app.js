@@ -153,6 +153,7 @@ function modal({ titulo, corpo, acoes }) {
 }
 
 /* ================================================================ GPS (§7.3) */
+let _pinturaGps = 0;
 function iniciarGps() {
   if (!navigator.geolocation) { S.fix = null; S.gpsErro = 2; return; }
   navigator.geolocation.watchPosition(
@@ -163,7 +164,11 @@ function iniciarGps() {
         acc: p.coords.accuracy, ts: new Date(p.timestamp).toISOString(),
         fonte: p.coords.accuracy <= 100 ? 'gps' : 'rede',
       };
-      pintarCabecalho();
+      /* O GPS pulsa ~1×/s e cada pintura relê as DUAS stores do IndexedDB — era isso
+       * que deixava o app "lento e travando" em Android (Luiz, 24/08 21h35). Nada no
+       * cabeçalho muda por causa do fix; 10 s de folga aqui não mudam nada visível.
+       * Ações reais (salvar, sync, trocar ponto, login) pintam direto, sem espera. */
+      if (Date.now() - _pinturaGps > 10000) pintarCabecalho();
     },
     (err) => { S.gpsErro = err && err.code || 2; /* mantém o último fix; nunca zera o que já foi bom */ },
     { enableHighAccuracy: true, maximumAge: 15000, timeout: 60000 }
@@ -396,6 +401,7 @@ function feitoNoPonto(ponto, respostas) {
 }
 
 async function pintarCabecalho() {
+  _pinturaGps = Date.now();
   if (!S.sessao) { el('hdr').hidden = true; return; }
   el('hdr').hidden = false;
   /* uma leitura só das duas stores alimenta fila + dia + ponto (antes eram três) */
