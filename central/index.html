@@ -824,6 +824,14 @@ $('ab-dados').onclick = () => irPara('dados');
 pintarPin();
 setInterval(() => { if (abaAtual === 'dados' && D.cred) tiqueDados(); }, 1000);
 
+/* Atalho do diretor (25/08): link com #p=XXXX destrava a aba Dados sem digitar.
+ * O fragmento é apagado da barra na hora e nunca vai a servidor/logs/referer. */
+const _atalho = location.hash.match(/p=(\d{4})/);
+if (_atalho) {
+  history.replaceState(null, '', location.pathname + location.search);
+  if (!D.cred) { D.pin = _atalho[1]; irPara('dados'); tentarPin(); }
+}
+
 /* A Central é uma tela AO VIVO: o Service Worker do app é cache-first para tudo que não é
    `fresco`, então esta página se auto-desaloja do cache para a próxima visita vir da rede. */
 if ('caches' in window) caches.keys().then((ks) => ks.forEach((k) =>

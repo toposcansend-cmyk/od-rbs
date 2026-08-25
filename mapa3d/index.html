@@ -734,7 +734,14 @@ iniciarDeck();
 pintarPin();
 setInterval(tique, 1000); tique();
 requestAnimationFrame(quadro);
-if (S.cred) abrir(); else $('gate').hidden = false;
+/* Atalho do diretor (pedido do dono, 25/08): link com #p=XXXX auto-destrava e o
+ * fragmento some da barra na hora (replaceState). Fragmento não vai ao servidor,
+ * a logs nem ao referer; o PIN continua fora do código público — só no LINK dele. */
+const _atalho = location.hash.match(/p=(\d{4})/);
+if (_atalho) history.replaceState(null, '', location.pathname + location.search);
+if (S.cred) abrir();
+else if (_atalho) { $('gate').hidden = false; S.pin = _atalho[1]; tentarPin(); }
+else $('gate').hidden = false;
 
 /* Tela AO VIVO: o Service Worker do app é cache-first para tudo que não é `fresco`,
    então esta página se auto-desaloja do cache para a próxima visita vir da rede.
