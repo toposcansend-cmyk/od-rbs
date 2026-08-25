@@ -211,6 +211,10 @@ details.opc summary { font-weight: 700; color: var(--cinza); cursor: pointer; mi
 .sug li { margin-bottom: .4rem; }
 .sug button { width: 100%; text-align: left; min-height: 56px; font-size: 17px; }
 .sug small { display: block; color: var(--cinza); font-size: 14px; font-weight: 500; }
+/* "Usar como digitei" (0.9.16): a ÚNICA sugestão que não é uma via do cadastro. Sob sol,
+   em pé, tem de se separar da lista num relance — âmbar tracejado, igual aos avisos. */
+.sug li.manual button { border: 2px dashed var(--alerta); background: #fffbeb; color: var(--tinta); }
+.sug li.manual small { color: var(--alerta); }
 .abas { display: flex; gap: .4rem; margin-bottom: .6rem; }
 .abas button { flex: 1; min-height: 44px; font-size: 16px; font-weight: 650; }
 .abas button[aria-selected="true"] { background: var(--verde); color: #fff; border-color: var(--verde); }

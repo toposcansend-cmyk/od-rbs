@@ -751,6 +751,11 @@ function carimbarGps() {
 }
 
 /* ---- telas 2 e 3: cascata origem / destino */
+/* Mínimo de letras para oferecer "Usar como digitei". Fica ACIMA do min_chars=2 do
+   autocomplete de propósito: com 2 letras o entrevistador ainda está digitando, e um
+   logradouro de 2 letras não é geocodificável por ninguém. Não vem do schema.json — o
+   schema é network-first e mudar isso em campo mudaria a REGRA de gravação, não um rótulo. */
+const MIN_VIA_MANUAL = 3;
 function telaCascata(box, t) {
   const p = t.prefixo, casc = S.schema.cascata;
   const jaTem = S.r[p + '_nivel'];
@@ -857,10 +862,21 @@ function abrirModoCascata(b, p) {
       deb = setTimeout(() => {
         sug.innerHTML = '';
         if (aba === 'via') {
+          const cru = q.value.trim();
           const res = buscarVias(S.vias, q.value, casc.autocomplete.top);
-          if (!res.length && normalizar(q.value).length >= 2)
-            sug.innerHTML = '<li class="dica">Nada encontrado. Tente a aba Bairro/localidade ou "Ponto de referência".</li>';
           res.forEach((v) => sug.appendChild(itemSug(v.n, 'via de Rio Branco do Sul', () => pedirNumero(p, v))));
+          /* SAÍDA MANUAL (0.9.16) — sempre a partir de 3 letras, INCLUSIVE quando há resultados:
+             o OSM só tem 220 vias do município, e quando tem, o "parecido" às vezes não é o
+             certo. Sem esta linha o entrevistador é empurrado para bairro/referência e o NOME
+             da rua que a pessoa falou SE PERDE — é o dado mais caro da cascata. Aqui ele vira
+             logradouro de verdade, sem coordenada: nível 3, `texto_livre`, o gabinete
+             geocodifica depois. Fica por último na lista, de propósito: o cadastro vem antes. */
+          if (cru.length >= MIN_VIA_MANUAL)
+            sug.appendChild(itemSug(`✏️ Usar como digitei: “${cru}”`,
+              'logradouro sem coordenada — o gabinete localiza depois',
+              () => pedirNumero(p, { n: cru, lat: null, lon: null, f: 'manual' }), 'manual'));
+          else if (!res.length && normalizar(q.value).length >= 2)
+            sug.innerHTML = '<li class="dica">Nada encontrado. Digite mais uma letra para usar o texto como está, ou tente a aba Bairro/localidade.</li>';
         } else {
           const todas = [...(S.localidades.bairros_urbanos || []), ...(S.localidades.localidades_rurais || [])];
           buscarVias(todas.map((x) => ({ ...x, n: x.nome })), q.value, 8)
@@ -934,19 +950,26 @@ function abrirModoCascata(b, p) {
   }
 }
 
-function itemSug(titulo, sub, onClick) {
+function itemSug(titulo, sub, onClick, cls) {
   const li = document.createElement('li');
   const b = document.createElement('button');
   b.innerHTML = `${esc(titulo)}<small>${esc(sub || '')}</small>`;
+  if (cls) li.className = cls;                 // `manual` = a única sugestão que não é do cadastro
   b.onclick = onClick; li.appendChild(b); return li;
 }
 
 function pedirNumero(p, via) {
   const casc = S.schema.cascata;
+  /* via.f === 'manual' = texto do entrevistador, não linha do cadastro: não tem coordenada
+     e o número não compra precisão nenhuma enquanto ninguém geocodificar. */
+  const manual = via.f === 'manual';
   const area = el('c-area');
   area.innerHTML = `
-    <div class="aviso ok"><b>${esc(via.n)}</b></div>
-    <label for="num">Número (deixe vazio se a pessoa não quiser dar — fica nível 3)</label>
+    <div class="aviso ${manual ? '' : 'ok'}"><b>${esc(via.n)}</b>${manual
+      ? '<br><small>rua digitada — sem coordenada; o gabinete localiza depois</small>' : ''}</div>
+    <label for="num">${manual
+      ? 'Número (ajuda o gabinete a achar; a rua digitada fica nível 3 de qualquer jeito)'
+      : 'Número (deixe vazio se a pessoa não quiser dar — fica nível 3)'}</label>
     <div class="linha2">
       <input id="num" type="text" inputmode="numeric" placeholder="ex.: 1234 ou s/n">
       <button class="b-primario" id="num-ok">OK</button>
@@ -959,12 +982,21 @@ function pedirNumero(p, via) {
     const n = el('num').value.trim();
     if (n && !/^(\d{1,5}|s\/n|S\/N)$/.test(n)) { toast('Número: 1 a 5 dígitos ou s/n (V10).', 'erro'); return; }
     const comN = n && n.toLowerCase() !== 's/n';
+    /* Rua digitada à mão: nível 3 mesmo COM número (sem coordenada não existe nível 2), e
+       precisao_m vazia — quem preenche é o gabinete depois de geocodificar (então o metodo
+       vira `geocod_posterior` lá, não aqui).
+       lat/lon vão explicitamente VAZIOS, e não "de fora": deixar as chaves fora preservaria
+       a coordenada de uma tentativa anterior da MESMA entrevista (ex.: "estou vindo daqui
+       perto" e depois Voltar), e a linha sairia com `texto_livre` carimbado em cima de um
+       GPS que não é dela — erro silencioso, o pior tipo. Vazio é o mesmo que o gabinete
+       recebe hoje de "Outro município", que já grava lat:'' , lon:''. */
     gravarLocal(p, {
-      nivel: comN ? casc.com_numero_nivel : 3,
-      metodo: 'autocomplete_via',
-      precisao_m: comN ? casc.com_numero_precisao_m : 150,
+      nivel: manual ? 3 : (comN ? casc.com_numero_nivel : 3),
+      metodo: manual ? 'texto_livre' : 'autocomplete_via',
+      precisao_m: manual ? '' : (comN ? casc.com_numero_precisao_m : 150),
       logradouro: via.n, numero: n, bairro: el('bai').value.trim(),
-      lat: via.lat, lon: via.lon, municipio: 'Rio Branco do Sul',
+      lat: manual ? '' : via.lat, lon: manual ? '' : via.lon,
+      municipio: 'Rio Branco do Sul',
     }, true);
   };
   el('num').focus();
