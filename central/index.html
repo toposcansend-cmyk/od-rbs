@@ -1,0 +1,454 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Central — OD RBS</title>
+<link rel="icon" href="../icons/icon-192.png">
+<link rel="stylesheet" href="../vendor/leaflet.css">
+<style>
+/* ── Central de comando — tela de escritório, fundo escuro proposital.
+ * Nenhum recurso externo: Leaflet é local, o mapa é vetorial (zero tile),
+ * a única rede que sai daqui é a própria API do Apps Script.            */
+:root{
+  --bg:#0d1117; --bg2:#161b22; --bg3:#1c2430; --linha:#2b3542;
+  --txt:#e6edf3; --txt2:#9aa7b4; --txt3:#6e7d8d;
+  --verde:#2ea043; --verde-c:#3fb950; --amarelo:#d29922; --vermelho:#da3633;
+  --azul:#388bfd; --mata:#2f7d6b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--txt); min-height:100vh;
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-variant-numeric:tabular-nums; padding:0 0 1.2rem;
+}
+h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--txt2);
+   margin:0 0 .6rem;font-weight:700}
+.wrap{max-width:1680px;margin:0 auto;padding:0 1rem}
+
+/* topo */
+header{position:sticky;top:0;z-index:600;background:var(--bg2);
+  border-bottom:1px solid var(--linha);padding:.6rem 1rem;
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap}
+header .tit{font-size:17px;font-weight:800;letter-spacing:.01em}
+header .tit i{font-style:normal;color:var(--verde-c)}
+header .sub{color:var(--txt3);font-size:12.5px}
+.espaco{flex:1 1 auto}
+#relogio{font-size:26px;font-weight:800;letter-spacing:.02em;line-height:1}
+#idade{font-size:12.5px;color:var(--txt2)}
+#idade b{color:var(--txt)}
+#idade.velho b{color:var(--amarelo)}
+#idade.erro b{color:var(--vermelho)}
+button{background:var(--bg3);color:var(--txt);border:1px solid var(--linha);
+  border-radius:9px;padding:.5rem .85rem;font:inherit;font-weight:600;cursor:pointer}
+button:hover{border-color:var(--txt3)}
+button.on{background:var(--amarelo);border-color:var(--amarelo);color:#1a1300}
+
+/* placar */
+.placar{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:.7rem;margin:.9rem 0 1rem}
+.tile{background:var(--bg2);border:1px solid var(--linha);border-radius:12px;padding:.7rem .85rem}
+.tile .rot{font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--txt2);font-weight:700}
+.tile .val{font-size:31px;font-weight:800;line-height:1.12;margin-top:.15rem}
+.tile .val s{text-decoration:none;font-size:19px;color:var(--txt3);font-weight:700}
+.tile .pe{font-size:12.5px;color:var(--txt3);margin-top:.2rem}
+.barra{height:7px;border-radius:4px;background:#0a0e14;overflow:hidden;margin-top:.45rem;
+  border:1px solid var(--linha)}
+.barra i{display:block;height:100%;background:var(--verde);transition:width .5s}
+.tile.ritmo{border-width:2px}
+.tile.ritmo.v{border-color:var(--verde);background:#0e2216}
+.tile.ritmo.a{border-color:var(--amarelo);background:#241d06}
+.tile.ritmo.r{border-color:var(--vermelho);background:#2a1113}
+.tile.ritmo.n{border-color:var(--linha)}
+.v .val{color:var(--verde-c)} .a .val{color:var(--amarelo)} .r .val{color:#ff7b72}
+
+/* equipe */
+.equipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:.7rem;margin-bottom:1rem}
+.pes{background:var(--bg2);border:1px solid var(--linha);border-left:4px solid var(--txt3);
+  border-radius:12px;padding:.65rem .8rem}
+.pes.v{border-left-color:var(--verde)} .pes.a{border-left-color:var(--amarelo)}
+.pes.r{border-left-color:var(--vermelho)} .pes.m{border-left-color:var(--mata)}
+.pes .nm{font-weight:700;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pes .nm em{font-style:normal;color:var(--txt3);font-weight:600;font-size:12px}
+.pes .n{font-size:25px;font-weight:800;line-height:1.15;margin:.15rem 0}
+.pes .n s{text-decoration:none;font-size:15px;color:var(--txt3)}
+.pes .li{font-size:12.5px;color:var(--txt2);display:flex;align-items:center;gap:.35rem}
+.pes .li+.li{margin-top:.15rem}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;background:var(--txt3)}
+.dot.v{background:var(--verde-c)} .dot.a{background:var(--amarelo)} .dot.r{background:var(--vermelho)}
+.tag{display:inline-block;background:#12312b;color:#7ee3c8;border:1px solid var(--mata);
+  border-radius:999px;padding:.05rem .45rem;font-size:11.5px;font-weight:700}
+.fila{color:var(--txt3)} .fila.q{color:var(--amarelo);font-weight:700}
+
+/* corpo */
+.corpo{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:.9rem;align-items:start}
+.painelbox{background:var(--bg2);border:1px solid var(--linha);border-radius:12px;padding:.75rem .85rem}
+#mapa{height:min(60vh,620px);min-height:340px;border-radius:9px;background:#0a0e14;border:1px solid var(--linha)}
+.leg{display:flex;flex-wrap:wrap;gap:.9rem;margin-top:.5rem;font-size:12px;color:var(--txt2)}
+.leg span{display:flex;align-items:center;gap:.3rem}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt3);
+   font-weight:700;padding:.3rem .35rem;border-bottom:1px solid var(--linha)}
+td{padding:.34rem .35rem;border-bottom:1px solid #1e2632}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right}
+.pid{font-weight:800;color:var(--azul)}
+.mut{color:var(--txt3)}
+.vazio{color:var(--txt3);font-size:13px;padding:.5rem .2rem}
+.pill{display:inline-block;border-radius:999px;padding:.03rem .4rem;font-size:11px;font-weight:700}
+.pill.z{background:#2a1113;color:#ff7b72} .pill.p{background:#241d06;color:#e3b341}
+.pill.f{background:#0e2216;color:#56d364}
+footer{margin-top:1rem;padding-top:.7rem;border-top:1px solid var(--linha);
+  color:var(--txt3);font-size:12.5px;display:flex;gap:1rem;flex-wrap:wrap}
+footer a{color:var(--azul)}
+.erro{background:#2a1113;border:1px solid var(--vermelho);color:#ffb4ae;
+  border-radius:10px;padding:.6rem .8rem;margin:.9rem 0;font-size:13.5px}
+.leaflet-container{background:#0a0e14}
+.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:var(--bg3);color:var(--txt);
+  border:1px solid var(--linha);box-shadow:0 6px 22px #0009}
+.leaflet-popup-content{margin:.55rem .7rem;font:13.5px/1.4 system-ui,sans-serif}
+.leaflet-control-zoom a{background:var(--bg3);color:var(--txt);border-color:var(--linha)}
+@media (max-width:1080px){ .corpo{grid-template-columns:1fr} #mapa{height:52vh} }
+@media (max-width:640px){
+  header{padding:.5rem .7rem} header .tit{font-size:15px} #relogio{font-size:21px}
+  .wrap{padding:0 .7rem} .tile .val{font-size:26px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="tit">CENTRAL <i>—</i> Pesquisa OD Rio Branco do Sul</div>
+    <div class="sub" id="dia">—</div>
+  </div>
+  <div class="espaco"></div>
+  <div style="text-align:right">
+    <div id="relogio">--:--:--</div>
+    <div id="idade">atualizado há <b>—</b></div>
+  </div>
+  <button id="btn-pausa" type="button" title="Pausar/retomar a atualização automática">⏸ Pausar</button>
+  <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
+</header>
+
+<div class="wrap">
+  <div id="alerta"></div>
+
+  <section class="placar" id="placar"></section>
+
+  <h2>Equipe em campo</h2>
+  <section class="equipe" id="equipe"></section>
+
+  <section class="corpo">
+    <div class="painelbox">
+      <h2>Os 42 pontos — círculo maior = cota maior</h2>
+      <div id="mapa"></div>
+      <div class="leg">
+        <span><i class="dot"></i> zerado</span>
+        <span><i class="dot a"></i> parcial</span>
+        <span><i class="dot v"></i> cota batida</span>
+        <span><i class="dot r"></i> +30% acima da cota</span>
+        <span class="mut" id="leg-fundo">fundo: limite municipal + vias (local)</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="painelbox" style="margin-bottom:.9rem">
+        <h2>Mais atrasados — pior primeiro</h2>
+        <div id="atrasados"></div>
+      </div>
+      <div class="painelbox">
+        <h2>Pontos fechados</h2>
+        <div id="fechados"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span><a id="link-painel" href="../painel/">↗ painel simples (FUNPAR)</a></span>
+    <span>dados: somente agregados — sem endereços, sem linhas individuais.</span>
+    <span class="mut" id="rodape-ver">—</span>
+  </footer>
+</div>
+
+<script src="../vendor/leaflet.js"></script>
+<script type="module">
+/* API_URL vem do config.js; se o módulo falhar (build em troca), cai no literal —
+   é a MESMA URL /exec pinada, pública, e a Central não pode ficar cega por isso. */
+const API_FALLBACK = 'https://script.google.com/macros/s/AKfycbz8jtDJSicgd2UoRHCyPBQ4Qe0PJZjzbC1yXAAcWukjNQw3iYSxZzPorgYVMeTLL947Gg/exec';
+let API_URL = API_FALLBACK;
+try { const m = await import('../config.js'); if (m.API_URL) API_URL = m.API_URL; } catch (e) {}
+
+const $ = (id) => document.getElementById(id);
+const token = new URLSearchParams(location.search).get('token') || '';
+const num = (n) => (n ?? 0).toLocaleString('pt-BR');
+const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ── Metas do dia (escala do dono, DEPLOY §5). Fora da janela, cai no 67 do D1. */
+const META_DIA = { '2026-08-25': 67, '2026-08-26': 92, '2026-08-27': 87, '2026-08-31': 89, '2026-09-01': 15 };
+/* Dupla rural do dia (DEPLOY §5): G01 SEMPRE está nela. A vista `painel` não devolve
+   `ultimo_ponto` (só a `gestao`, que exige token do G01), então a rota rural é lida da
+   escala. Se um dia o campo `ultimo_ponto` aparecer no JSON, ele tem precedência. */
+const RURAL_DIA = { '2026-08-25': 'P01', '2026-08-26': 'P02', '2026-08-27': 'P03', '2026-08-31': 'P04', '2026-09-01': 'P01' };
+/* Meta por pessoa, do jeito que a escala realmente reparte: `urb` é por cabeça (3 urbanos),
+   `rur` é do PAR inteiro (G01 + 1). Dia fora da escala: some o denominador em vez de inventar. */
+const META_PESSOA = {
+  '2026-08-25': { urb: 18, rur: 13 }, '2026-08-26': { urb: 26, rur: 14 },
+  '2026-08-27': { urb: 26, rur: 9 }, '2026-08-31': { urb: 26, rur: 11 },
+  '2026-09-01': { urb: 1, rur: 13 },
+};
+
+/* ── Janela produtiva: 07:15–17:50 com 12:00–13:00 fora da conta = 575 min */
+const AB = 7 * 60 + 15, ALM0 = 12 * 60, ALM1 = 13 * 60, FIM = 17 * 60 + 50;
+const JANELA = (ALM0 - AB) + (FIM - ALM1);
+function minProdutivos(d) {
+  const t = d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  const cl = (x, a, b) => Math.max(a, Math.min(b, x));
+  return (cl(t, AB, ALM0) - AB) + (cl(t, ALM1, FIM) - ALM1);
+}
+
+/* ── Estado */
+const S = { dados: null, buscadoEm: 0, pausado: false, erro: '', mapa: null, camadaPontos: null,
+            pontos: [], fundoOk: false, timer: null };
+
+/* ═══ 1. Rede ═══ */
+async function buscar() {
+  if (!token) { S.erro = 'Falta o token de leitura na URL: acrescente <code>?token=…</code>'; pintar(); return; }
+  try {
+    /* cross-origin: nunca passa pelo Service Worker. no-store por garantia. */
+    const r = await fetch(`${API_URL}?action=painel&token=${encodeURIComponent(token)}`, { cache: 'no-store' });
+    const j = JSON.parse(await r.text());
+    if (!j.ok) { S.erro = j.erro || 'Acesso negado pela API.'; pintar(); return; }
+    S.dados = j; S.buscadoEm = Date.now(); S.erro = '';
+  } catch (e) {
+    S.erro = 'Falha ao consultar a API: ' + e.message + ' — os números abaixo são os da última leitura.';
+  }
+  pintar();
+}
+
+/* ═══ 2. Placar ═══ */
+function placar(j) {
+  const t = j.totais || {}, hoje = t.hoje || 0;
+  const metaDia = META_DIA[j.data_hoje] || 67;
+  const agora = new Date(), prod = minProdutivos(agora);
+  const esperado = metaDia * (prod / JANELA);
+  const razao = esperado >= 1 ? hoje / esperado : null;
+  let cls = 'n', rot = 'aguardando a janela', val = '—';
+  if (razao !== null) {
+    cls = razao >= 0.9 ? 'v' : razao >= 0.6 ? 'a' : 'r';
+    val = Math.round(razao * 100) + '%';
+    rot = `${num(hoje)} feitas · esperado ${Math.round(esperado)} até agora`;
+  } else if (prod <= 0) {
+    rot = agora.getHours() * 60 + agora.getMinutes() < AB ? 'campo abre 07:15' : 'janela encerrada (17:50)';
+  }
+  const dentroAlmoco = (() => { const m = agora.getHours() * 60 + agora.getMinutes(); return m >= ALM0 && m < ALM1; })();
+
+  $('placar').innerHTML = `
+  <div class="tile"><div class="rot">Total do projeto</div>
+    <div class="val">${num(t.total)} <s>/ ${num(t.meta)}</s></div>
+    <div class="barra"><i style="width:${pct(t.total, t.meta)}%"></i></div>
+    <div class="pe">${pct(t.total, t.meta)}% · faltam ${num((t.meta || 0) - (t.total || 0))}</div></div>
+
+  <div class="tile"><div class="rot">Hoje</div>
+    <div class="val">${num(hoje)} <s>/ ${num(metaDia)}</s></div>
+    <div class="barra"><i style="width:${pct(hoje, metaDia)}%;background:var(--azul)"></i></div>
+    <div class="pe">meta do dia · ${pct(hoje, metaDia)}%</div></div>
+
+  <div class="tile"><div class="rot">Urbano</div>
+    <div class="val">${num(t.urbano)} <s>/ ${num(t.meta_urbano)}</s></div>
+    <div class="barra"><i style="width:${pct(t.urbano, t.meta_urbano)}%"></i></div>
+    <div class="pe">${pct(t.urbano, t.meta_urbano)}% da cota urbana</div></div>
+
+  <div class="tile"><div class="rot">Rural</div>
+    <div class="val">${num(t.rural)} <s>/ ${num(t.meta_rural)}</s></div>
+    <div class="barra"><i style="width:${pct(t.rural, t.meta_rural)}%;background:var(--mata)"></i></div>
+    <div class="pe">${pct(t.rural, t.meta_rural)}% da cota rural</div></div>
+
+  <div class="tile"><div class="rot">Recusas</div>
+    <div class="val">${num(t.recusas)}</div>
+    <div class="pe">acumulado do projeto · ${t.recusa_pct ?? 0}% de recusa</div></div>
+
+  <div class="tile ritmo ${cls}"><div class="rot">Ritmo do dia</div>
+    <div class="val">${val}</div>
+    <div class="pe">${esc(rot)}${dentroAlmoco ? ' · almoço' : ''}</div></div>`;
+}
+
+/* ═══ 3. Equipe ═══
+ * `ultimo_sync` chega como 'dd/MM HH:mm' no MESMO relógio de `gerado_em` (DEPLOY §12),
+ * então a idade é medida contra o carimbo do servidor — não contra o relógio deste PC. */
+function minDesdeSync(ultimo, geradoEm) {
+  const m = /^(\d{2})\/(\d{2})\s+(\d{2}):(\d{2})/.exec(String(ultimo || ''));
+  const g = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})/.exec(String(geradoEm || ''));
+  if (!m || !g) return null;
+  const ref = new Date(+g[1], +g[2] - 1, +g[3], +g[4], +g[5], +g[6]);
+  let d = new Date(+g[1], +m[2] - 1, +m[1], +m[3], +m[4], 0);
+  if (d - ref > 36e5) d = new Date(+g[1] - 1, +m[2] - 1, +m[1], +m[3], +m[4], 0); // virada de ano
+  return Math.max(0, Math.round((ref - d) / 60000));
+}
+const idade = (min) => min == null ? '—' : min < 60 ? `${min} min`
+  : `${Math.floor(min / 60)}h${String(min % 60).padStart(2, '0')}`;
+
+function equipe(j) {
+  const ruralHoje = RURAL_DIA[j.data_hoje] || '';
+  $('equipe').innerHTML = (j.pesquisadores || []).map((p) => {
+    const min = minDesdeSync(p.ultimo_sync, j.gerado_em);
+    const up = String(p.ultimo_ponto || '');
+    /* rota rural: pelo ponto se a API mandar; senão pela escala (G01 sempre na dupla) */
+    const rural = up ? /^PR/.test(up) : (p.pesq_id === 'G01' || p.pesq_id === ruralHoje);
+    let cls = min == null ? '' : min < 45 ? 'v' : min < 120 ? 'a' : 'r';
+    let sino = `<i class="dot ${cls}"></i> sync há <b>${idade(min)}</b>`;
+    /* rural sem sinal é silêncio NORMAL: não pinta o vermelho de alarme */
+    if (rural && cls === 'r') {
+      cls = 'm';
+      sino = `<i class="dot" style="background:var(--mata)"></i> sem sinal há <b>${idade(min)}</b> — normal na rota rural`;
+    }
+    const mp = META_PESSOA[j.data_hoje];
+    const alvo = !mp ? '' : rural ? `<s>/ ${mp.rur} na dupla</s>` : `<s>/ ${mp.urb} hoje</s>`;
+    return `<div class="pes ${cls}">
+      <div class="nm">${esc(p.nome)} <em>${esc(p.pesq_id)}</em>${rural ? ' <span class="tag">🌲 rural</span>' : ''}</div>
+      <div class="n">${num(p.hoje)} ${alvo}</div>
+      <div class="li">${sino}</div>
+      <div class="li"><span class="fila${p.fila > 3 ? ' q' : ''}">fila ${num(p.fila)}</span>
+        <span class="mut">· último ponto ${esc(up || '—')} · ${esc(p.ultimo_sync || '—')}</span></div>
+    </div>`;
+  }).join('') || '<p class="vazio">sem equipe no retorno da API</p>';
+}
+
+/* ═══ 4. Tabelas ═══ */
+const st = (p) => p.feito === 0 ? 0 : p.feito >= (p.meta || 0) * 1.3 ? 3 : p.feito >= (p.meta || 0) ? 2 : 1;
+
+function tabelas(j) {
+  const ps = (j.pontos || []).slice();
+  const atras = ps.filter((p) => p.feito < (p.meta || 0))
+    .sort((a, b) => (a.feito === 0 ? -1 : 0) - (b.feito === 0 ? -1 : 0)
+      || (a.feito / (a.meta || 1)) - (b.feito / (b.meta || 1))
+      || (b.meta || 0) - (a.meta || 0)).slice(0, 12);
+  const zer = ps.filter((p) => p.feito === 0).length;
+
+  $('atrasados').innerHTML = atras.length ? `<table>
+    <thead><tr><th>Ponto</th><th>Local</th><th class="n">Feito</th><th class="n">Cota</th><th class="n">%</th></tr></thead>
+    <tbody>${atras.map((p) => `<tr>
+      <td><span class="pid">${esc(p.ponto_id)}</span> ${esc(p.nome)}</td>
+      <td class="mut">${esc(p.bairro || p.tipo)}</td>
+      <td class="n">${p.feito === 0 ? '<span class="pill z">0</span>'
+        : `<span class="pill p">${num(p.feito)}</span>`}</td>
+      <td class="n mut">${num(p.meta)}</td><td class="n">${pct(p.feito, p.meta)}%</td></tr>`).join('')}
+    </tbody></table>
+    <p class="vazio">${zer} ponto(s) ainda em zero de ${ps.length} · lista cortada nos 12 piores</p>`
+    : '<p class="vazio">nenhum ponto abaixo da cota.</p>';
+
+  const fech = ps.filter((p) => p.feito >= (p.meta || 0) && (p.meta || 0) > 0)
+    .sort((a, b) => (b.feito / (b.meta || 1)) - (a.feito / (a.meta || 1)));
+  $('fechados').innerHTML = fech.length ? `<table>
+    <thead><tr><th>Ponto</th><th>Local</th><th class="n">Feito</th><th class="n">Cota</th></tr></thead>
+    <tbody>${fech.map((p) => `<tr>
+      <td><span class="pid">${esc(p.ponto_id)}</span> ${esc(p.nome)}</td>
+      <td class="mut">${esc(p.bairro || p.tipo)}</td>
+      <td class="n"><span class="pill ${st(p) === 3 ? 'z' : 'f'}">${num(p.feito)}</span></td>
+      <td class="n mut">${num(p.meta)}</td></tr>`).join('')}</tbody></table>
+    <p class="vazio">${fech.length} de ${ps.length} pontos com a cota batida${
+      fech.filter((p) => st(p) === 3).length ? ' · em vermelho, os que passaram de 30%' : ''}</p>`
+    : '<p class="vazio">nenhum ponto fechou a cota ainda.</p>';
+}
+
+/* ═══ 5. Mapa ═══ */
+const COR = ['#6e7d8d', '#d29922', '#3fb950', '#da3633'];
+async function iniciarMapa() {
+  S.mapa = L.map('mapa', { zoomControl: true, attributionControl: false }).setView([-25.19, -49.31], 12);
+  try {
+    const r = await fetch('../data/pontos.json', { cache: 'no-store' });
+    S.pontos = (await r.json()).pontos || [];
+  } catch (e) { console.warn('[central] pontos.json indisponível', e); }
+  if (S.pontos.length) {
+    const b = L.latLngBounds(S.pontos.map((p) => [p.lat, p.lon]));
+    S.mapa.fitBounds(b, { padding: [26, 26] });
+  }
+  /* Fundo vetorial local. Se o geojson estiver em manutenção, o mapa segue só com os pontos. */
+  try {
+    const g = await (await fetch('../data/ruas_rbs.geojson')).json();
+    if (g.features?.length)
+      L.geoJSON({ type: 'FeatureCollection', features: g.features },
+        { style: { color: '#33424f', weight: 1.2 }, interactive: false }).addTo(S.mapa);
+    if (g.limite_ring?.length)
+      L.polygon(g.limite_ring.map((c) => [c[1], c[0]]),
+        { color: '#2f7d6b', weight: 1.6, fill: false, dashArray: '6 4', interactive: false }).addTo(S.mapa);
+    S.fundoOk = true;
+  } catch (e) {
+    console.warn('[central] geojson de fundo indisponível — mapa segue só com os pontos', e);
+    $('leg-fundo').textContent = 'fundo indisponível no momento — só os pontos';
+  }
+  S.camadaPontos = L.layerGroup().addTo(S.mapa);
+  desenharPontos();
+}
+
+function desenharPontos() {
+  if (!S.camadaPontos) return;
+  S.camadaPontos.clearLayers();
+  const api = {}; (S.dados?.pontos || []).forEach((p) => { api[p.ponto_id] = p; });
+  S.pontos.forEach((g) => {
+    const a = api[g.ponto_id] || {};
+    const meta = a.meta ?? g.meta_entrevistas ?? 0, feito = a.feito ?? 0;
+    const s = st({ feito, meta });
+    L.circleMarker([g.lat, g.lon], {
+      radius: 4 + Math.sqrt(meta || 1) * 2.4, color: COR[s], weight: 2,
+      fillColor: COR[s], fillOpacity: s === 0 ? .12 : .5,
+    }).bindPopup(`<b>${esc(g.ponto_id)}</b> ${esc(a.nome || g.nome)}<br>
+      <span style="color:${COR[s]};font-weight:700">${num(feito)} / ${num(meta)}</span>
+      · ${pct(feito, meta)}% da cota<br>
+      <span style="color:#9aa7b4">${esc(g.bairro || '')} · ${esc(g.tipo)}${g.tier ? ' · tier ' + esc(g.tier) : ''}</span>`)
+      .addTo(S.camadaPontos);
+  });
+}
+
+/* ═══ 6. Pintura + relógio ═══ */
+function pintar() {
+  $('alerta').innerHTML = S.erro ? `<div class="erro">${S.erro}</div>` : '';
+  const j = S.dados; if (!j) return;
+  $('dia').textContent = `dia de campo ${j.data_hoje || '—'} · meta ${num(META_DIA[j.data_hoje] || 67)} entrevistas · janela 07:15–17:50`;
+  placar(j); equipe(j); tabelas(j); desenharPontos();
+  $('rodape-ver').textContent = `servidor: ${j.gerado_em || '—'} · schema ${j.schema_version || '—'}`;
+  document.title = `${j.totais?.hoje ?? 0}/${META_DIA[j.data_hoje] || 67} hoje — Central OD RBS`;
+}
+
+function tique() {
+  const d = new Date();
+  $('relogio').textContent = d.toLocaleTimeString('pt-BR');
+  const s = S.buscadoEm ? Math.round((Date.now() - S.buscadoEm) / 1000) : null;
+  const e = $('idade');
+  e.innerHTML = S.pausado ? 'atualização <b>PAUSADA</b>'
+    : s == null ? 'atualizado há <b>—</b>'
+    : `atualizado há <b>${s < 90 ? s + 's' : Math.round(s / 60) + ' min'}</b>`;
+  e.className = S.erro ? 'erro' : (s != null && s > 150 ? 'velho' : '');
+}
+
+/* ═══ 7. Ciclo ═══ */
+function agendar() {
+  clearInterval(S.timer);
+  if (!S.pausado) S.timer = setInterval(buscar, 45000);
+}
+$('btn-pausa').onclick = () => {
+  S.pausado = !S.pausado;
+  $('btn-pausa').textContent = S.pausado ? '▶ Retomar' : '⏸ Pausar';
+  $('btn-pausa').classList.toggle('on', S.pausado);
+  agendar(); tique();
+};
+$('btn-agora').onclick = buscar;
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !S.pausado) buscar(); });
+if (token) $('link-painel').href = '../painel/?token=' + encodeURIComponent(token);
+
+setInterval(tique, 1000); tique();
+await iniciarMapa();
+await buscar();
+agendar();
+
+/* A Central é uma tela AO VIVO: o Service Worker do app é cache-first para tudo que não é
+   `fresco`, então esta página se auto-desaloja do cache para a próxima visita vir da rede. */
+if ('caches' in window) caches.keys().then((ks) => ks.forEach((k) =>
+  caches.open(k).then((c) => c.delete(location.pathname, { ignoreSearch: true })))).catch(() => {});
+</script>
+</body>
+</html>
