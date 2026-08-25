@@ -155,7 +155,9 @@ button:hover,select:hover{border-color:var(--txt3)}
       <option value="modal">Modo de transporte</option>
     </select></span>
     <span id="grp-filtro" hidden><label for="filtro">Filtrar</label>
-    <select id="filtro" title="No modo rotas a cor é o VOLUME do trecho — quem separa período e modal é este filtro."></select></span>
+    <select id="filtro" title="Com as fitas agregadas a cor é o VOLUME do trecho — quem separa período e modal é este filtro."></select></span>
+    <span id="grp-agregar" hidden><label for="agregar" title="Desligado: cada leitura tem a SUA linha. Ligado: as linhas viram fitas cuja largura, cor e altura são o volume do trecho.">
+      <input type="checkbox" id="agregar"> Agregar volume</label></span>
     <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
     <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
     <button id="btn-travar" type="button" title="Esquecer o acesso nesta aba">🔒</button>
@@ -330,8 +332,15 @@ const S = {
   pontoPos: new Map(),      // ponto_id -> {pos,nome}  — a queda final de coordenada
   centroMun: null,          // último recurso absoluto: o meio do município
   pontos: [], vias: null, limite: null,
+  quadras: null,            // polígonos dos quarteirões (IBGE Censo 2022) — o chão da cidade
+  leito: null,              // malha viária pronta para desenhar, derivada do grafo 1×
   externos: [], cidades: [],
   G: null, rotas: null,     // grafo viário + rotas acumuladas por aresta
+  /* INDIVIDUAIS é o padrão do modo Rotas: cada leitura tem A SUA linha. A agregação em
+     fitas por volume continua a um clique — mas ela responde "onde afunila", não "onde
+     ESTA pessoa passou", e era a segunda pergunta que a v1 respondia como se fosse a
+     primeira. Uma fita grossa não é 37 viagens visíveis: é 37 viagens escondidas. */
+  agregar: false,
   deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1, enquadrouCidades: false,
 };
 const FLASH_MS = 2000;
@@ -601,6 +610,17 @@ async function carregarBase() {
     if (g.limite_ring?.length) S.limite = g.limite_ring;
   } catch (e) { console.warn('[mapa3d] geojson de fundo indisponível — palco sem chão', e); }
 
+  /* As QUADRAS do Censo 2022. Sem elas a cidade é um punhado de riscos no escuro: é o
+     quarteirão, o cheio entre as ruas, que faz o olho ler "cidade" e não "diagrama". */
+  try {
+    const q = await (await fetch('../data/quadras_rbs.json')).json();
+    if (q.q?.length) {
+      S.quadras = q.q;
+      console.info('[mapa3d] quadras IBGE: %d blocos · %s km² · %d domicílios',
+        q.meta?.quadras, q.meta?.km2, q.meta?.domicilios);
+    }
+  } catch (e) { console.warn('[mapa3d] quadras_rbs.json indisponível — cidade sem quarteirão', e); }
+
   /* último recurso da queda de coordenada: o meio do município. Só é usado se a leitura
      vier sem `ponto_id` reconhecível — não acontece hoje, mas garante os "129 de 129". */
   const base = (S.limite && S.limite.length) ? S.limite : S.pontos.map((p) => [p.lon, p.lat]);
@@ -767,7 +787,9 @@ function dijkstraDe(src) {
   return r;
 }
 
-/** lista de arestas do caminho a→b, ou null se não houver caminho. */
+/** caminho a→b: `{e: arestas, n: nós}`, ou null se não houver caminho.
+ *  Os NÓS não são luxo: a fita agregada só precisa de arestas (conta quem passa), mas a
+ *  linha INDIVIDUAL precisa da sequência de vértices para virar uma polilinha contínua. */
 function caminho(a, b, cache) {
   const k = a + '>' + b;
   if (cache.has(k)) return cache.get(k);
@@ -775,16 +797,40 @@ function caminho(a, b, cache) {
   if (a !== b) {
     const D = dijkstraDe(a);
     if (D.dist[b] < Infinity) {
-      cam = []; let v = b, guarda = 0;
+      const es = [], ns = [b];
+      let v = b, guarda = 0, ok = true;
       while (v !== a && guarda++ < 100000) {
         const e = D.prevE[v];
-        if (e < 0) { cam = null; break; }
-        cam.push(e); v = D.prevN[v];
+        if (e < 0) { ok = false; break; }
+        es.push(e); v = D.prevN[v]; ns.push(v);
       }
+      if (ok && v === a) { ns.reverse(); cam = { e: es, n: ns }; }
     }
   }
   cache.set(k, cam);
   return cam;
+}
+
+/* ── O fio de UMA leitura.
+ * Várias viagens compartilham o mesmo trecho de rua; desenhadas no mesmo eixo elas se
+ * sobrepõem exatamente e 37 viagens viram UM risco — o borrão que a v1 resolvia
+ * engrossando a fita (e escondendo quem era quem). Aqui cada leitura ganha uma FAIXA
+ * lateral própria, determinística pelo índice: as que dividem a rua correm lado a lado
+ * como cabos, e o olho conta os fios em vez de adivinhar a espessura.                  */
+const M_LAT = 111320, M_LON = 111320 * Math.cos(25.19 * Math.PI / 180);
+const FAIXAS = 9, PASSO_M = 3.0, Z_FIO = 6;
+function fio(ns, idx) {
+  const G = S.G;
+  const k = ((idx % FAIXAS) - (FAIXAS - 1) / 2) * PASSO_M;
+  const p = ns.map((v) => [G.n[2 * v], G.n[2 * v + 1]]);
+  const out = [];
+  for (let i = 0; i < p.length; i++) {
+    const a = p[Math.max(0, i - 1)], b = p[Math.min(p.length - 1, i + 1)];
+    const dx = (b[0] - a[0]) * M_LON, dy = (b[1] - a[1]) * M_LAT;
+    const L = Math.hypot(dx, dy) || 1;
+    out.push([p[i][0] - k * (dy / L) / M_LON, p[i][1] + k * (dx / L) / M_LAT, Z_FIO]);
+  }
+  return out;
 }
 
 function passaFiltro(a) {
@@ -803,7 +849,7 @@ function montarRotas() {
   const t0 = performance.now();
   const cont = new Float64Array(G.E);
   const legs = new Map(), paradas = new Map();
-  const diretas = [];
+  const diretas = [], fios = [];
   const cacheCam = new Map();
   let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0;
 
@@ -812,9 +858,11 @@ function montarRotas() {
     const A = paradas.get(s.no) || { curtas: 0, semDestino: 0 };
     A[campo]++; paradas.set(s.no, A);
   };
-  for (const a of [...S.arcos, ...S.externos]) {
+  const todas = [...S.arcos, ...S.externos];
+  for (let idx = 0; idx < todas.length; idx++) {
+    const a = todas[idx];
     if (!passaFiltro(a)) continue;
-    const reta = () => { diretas.push({ path: [[a.o[0], a.o[1], Z_BASE], [a.d[0], a.d[1], Z_BASE]] }); foraMalha++; };
+    const reta = () => { diretas.push({ path: [[a.o[0], a.o[1], Z_BASE], [a.d[0], a.d[1], Z_BASE]], a }); foraMalha++; };
     /* Ponta que caiu no PONTO DA ENTREVISTA não entra nas fitas. Ela é honesta como
      * arco ("sabemos onde a pessoa estava, não para onde foi"), mas roteá-la pintaria
      * de volume ruas que ninguém disse ter percorrido — e volume por rua é justamente
@@ -831,7 +879,10 @@ function montarRotas() {
       if (!sa || sa.d > SNAP_MAX_M || porta < 0) { reta(); continue; }
       const cam = caminho(sa.no, porta, cacheCam);
       if (!cam) { reta(); continue; }
-      for (const e of cam) cont[e]++;
+      for (const e of cam.e) cont[e]++;
+      /* o fio intermunicipal termina na porta da malha e emenda a reta gelo até a sede:
+         a viagem inteira num traço só, sem fingir que temos a estrada de lá.          */
+      fios.push({ path: [...fio(cam.n, idx), [fora[0], fora[1], Z_FIO]], a, inter: true });
       const L = legs.get(a.cidade) || { cidade: a.cidade, no: porta, pos: fora, n: 0 };
       L.n++; legs.set(a.cidade, L);
       naMalha++;
@@ -846,7 +897,8 @@ function montarRotas() {
     }
     const cam = caminho(sa.no, sb.no, cacheCam);
     if (!cam) { reta(); continue; }
-    for (const e of cam) cont[e]++;
+    for (const e of cam.e) cont[e]++;
+    fios.push({ path: fio(cam.n, idx), a, inter: false });
     naMalha++;
   }
 
@@ -878,7 +930,7 @@ function montarRotas() {
   }));
   const aneis = [...paradas].map(([no, A]) => ({
     pos: [G.n[2 * no], G.n[2 * no + 1]], n: A.curtas + A.semDestino, ...A }));
-  S.rotas = { segs, pernas, diretas, aneis, maxC, naMalha, foraMalha, curtas, semDestino,
+  S.rotas = { segs, pernas, diretas, aneis, fios, maxC, naMalha, foraMalha, curtas, semDestino,
               ms: Math.round(performance.now() - t0) };
 }
 
@@ -897,17 +949,56 @@ function brilho(a) {
   return t >= 1 ? 0 : (1 - t) * (1 - t);
 }
 
+/* ── O LEITO: a malha viária desenhada do PRÓPRIO grafo que roteia.
+ * Na v1 o chão vinha do `ruas_rbs.geojson` (OSM) e as rotas de um grafo separado: duas
+ * verdades sobre a mesma rua, e a rota passando por onde não havia risco desenhado. Agora
+ * é um só desenho. A hierarquia (largura e brilho por classe) é o que faz a cidade ter
+ * ESQUELETO: sem ela 4.828 arestas viram um feltro cinza uniforme, e o eixo principal —
+ * que é o assunto da tela — não se distingue de uma viela.                              */
+const VIA_LARG = [2.4, 1.9, 1.45, 1.0, 1.0, 0.7, 0.7];        // px, por classe
+const VIA_ALFA = [255, 235, 215, 190, 185, 150, 120];
+function leito() {
+  if (S.leito || !S.G) return S.leito;
+  const G = S.G, out = [];
+  for (let i = 0; i < G.E; i++) {
+    const a = G.e[2 * i], b = G.e[2 * i + 1];
+    out.push({ path: [[G.n[2 * a], G.n[2 * a + 1]], [G.n[2 * b], G.n[2 * b + 1]]], c: G.c[i] });
+  }
+  S.leito = out;
+  return out;
+}
+
 function camadas() {
   const L = [];
   const rotas = S.vis === 'rotas';
-  if (S.vias) L.push(new deck.GeoJsonLayer({
-    id: 'vias', data: S.vias, stroked: true, filled: false, pickable: false,
+
+  /* ── QUADRAS: o cheio entre as ruas. Preenchimento só um degrau acima do fundo e borda
+   * discreta — o quarteirão é CHÃO, não conteúdo: se competir em brilho com os arcos,
+   * a tela vira uma planta cadastral com uns riscos coloridos por cima.               */
+  if (S.quadras) L.push(new deck.PolygonLayer({
+    id: 'quadras', data: S.quadras, pickable: false,
+    getPolygon: (q) => q.a, filled: true, stroked: true, extruded: false,
+    getFillColor: [26, 34, 45, 225],
+    getLineColor: [44, 57, 73, 235],
+    lineWidthUnits: 'pixels', getLineWidth: 0.7, lineWidthMinPixels: 0.5,
+  }));
+
+  const via = leito();
+  if (via) L.push(new deck.PathLayer({
+    id: 'leito', data: via, getPath: (d) => d.path, pickable: false,
     /* no modo rotas a rua não é mais cenário: é o LEITO por onde o volume corre.
        Um pouco mais clara, para que o trecho sem viagem nenhuma continue legível. */
-    getLineColor: rotas ? [96, 122, 148, 230] : [70, 90, 112, 205],
-    lineWidthUnits: 'pixels', getLineWidth: rotas ? 1.25 : 1,
-    lineWidthMinPixels: rotas ? 1 : 0.8,
-    updateTriggers: { getLineColor: S.vis, getLineWidth: S.vis },
+    getColor: (d) => (rotas ? [104, 130, 156, VIA_ALFA[d.c]] : [78, 99, 122, VIA_ALFA[d.c]]),
+    widthUnits: 'pixels', getWidth: (d) => VIA_LARG[d.c] * (rotas ? 1.15 : 1),
+    widthMinPixels: 0.6, capRounded: true, jointRounded: true,
+    updateTriggers: { getColor: S.vis, getWidth: S.vis },
+  }));
+  /* enquanto o grafo não desceu, o chão antigo do OSM segura a cena (e é o que sobra se
+     o grafo faltar de vez) — a tela nunca fica sem chão por causa de um fetch lento. */
+  else if (S.vias) L.push(new deck.GeoJsonLayer({
+    id: 'vias', data: S.vias, stroked: true, filled: false, pickable: false,
+    getLineColor: [70, 90, 112, 205],
+    lineWidthUnits: 'pixels', getLineWidth: 1, lineWidthMinPixels: 0.8,
   }));
   if (S.limite) L.push(new deck.PathLayer({
     id: 'limite', data: [{ path: S.limite }], getPath: (d) => d.path, pickable: false,
@@ -986,21 +1077,39 @@ function montarCamadasRotas(L) {
   if (!R) return;
   const larg = (n) => 1.1 + 13 * Math.sqrt(R.maxC ? n / R.maxC : 0);
 
-  /* fora da malha: reta baixa e apagada. Não finge rua — e a legenda diz o que é. */
+  /* fora da malha: reta baixa e apagada. Não finge rua — e a legenda diz o que é.
+     Nas individuais ela guarda a cor da leitura: continua sendo UMA viagem. */
   if (R.diretas.length) L.push(new deck.PathLayer({
-    id: 'rotas-fora', data: R.diretas, getPath: (d) => d.path, pickable: false,
-    getColor: [150, 168, 188, 90], widthUnits: 'pixels', getWidth: 1.1, widthMinPixels: 1,
+    id: 'rotas-fora', data: R.diretas, getPath: (d) => d.path, pickable: true,
+    getColor: (d) => (S.agregar ? [150, 168, 188, 90] : [...corDe(d.a), 105]),
+    widthUnits: 'pixels', getWidth: 1.1, widthMinPixels: 1,
+    updateTriggers: { getColor: [S.agregar, S.modo] },
   }));
 
-  /* perna intermunicipal: da porta da malha até a sede. Mesmo gelo dos arcos externos. */
-  if (R.pernas.length) L.push(new deck.PathLayer({
+  /* ── AS INDIVIDUAIS (o padrão): uma polilinha por leitura, rente ao solo, na cor do
+   * período/modal que o seletor pede. É a resposta a "cada leitura deve ter SUA linha".
+   * Fina de propósito: o que informa aqui é QUANTOS fios correm juntos, não a espessura
+   * de um deles — engrossar seria reinventar a fita agregada por outro nome.          */
+  if (!S.agregar && R.fios.length) L.push(new deck.PathLayer({
+    id: 'rotas-fios', data: R.fios, getPath: (d) => d.path, pickable: true,
+    getColor: (d) => { const b = brilho(d.a);
+      const c = d.inter ? GELO : corDe(d.a);
+      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), d.inter ? 175 : 215]; },
+    widthUnits: 'pixels', getWidth: (d) => 1.5 + brilho(d.a) * 3.2,
+    widthMinPixels: 1.1, capRounded: true, jointRounded: true,
+    updateTriggers: { getColor: [S.modo, S.anim], getWidth: S.anim },
+  }));
+
+  /* perna intermunicipal: da porta da malha até a sede. Mesmo gelo dos arcos externos.
+     Só no agregado — nas individuais cada fio já leva a sua própria perna emendada. */
+  if (S.agregar && R.pernas.length) L.push(new deck.PathLayer({
     id: 'rotas-perna', data: R.pernas, getPath: (d) => d.path, pickable: true,
     getColor: [...GELO, 150], widthUnits: 'pixels',
     getWidth: (d) => 1.0 + 7 * Math.sqrt(R.maxC ? d.n / R.maxC : 0), widthMinPixels: 1,
     capRounded: true, jointRounded: true,
   }));
 
-  if (R.segs.length) L.push(new deck.PathLayer({
+  if (S.agregar && R.segs.length) L.push(new deck.PathLayer({
     id: 'rotas', data: R.segs, getPath: (d) => d.path, pickable: true,
     getColor: (d) => [...corVolume(d.t), 235],
     widthUnits: 'pixels', getWidth: (d) => larg(d.n), widthMinPixels: 1.2,
@@ -1027,6 +1136,13 @@ const RESSALVA = {
 };
 function tooltip({ object, layer }) {
   if (!object) return null;
+  /* o fio individual É uma leitura: cai no MESMO balão do arco, com origem, destino,
+     hora, pesquisador e as ressalvas de precisão. Um fio que não se identifica não
+     serviria para nada — é justamente a leitura que o dono quer poder apontar. */
+  if (layer.id === 'rotas-fios' || layer.id === 'rotas-fora') {
+    if (!object.a) return null;
+    return tooltip({ object: object.a, layer: { id: 'arcos' } });
+  }
   if (layer.id === 'pontos') return { html:
     `<b>${esc(object.ponto_id)}</b> ${esc(object.nome)}<br>
      <span style="color:#9aa7b4">${esc(object.bairro || '')} · ${esc(object.tipo)}</span>` };
@@ -1111,12 +1227,25 @@ function pintarLegendaRotas() {
     $('leg-nota').textContent = 'sem grafo_rbs.json não há como rotear — volte para os Arcos.';
     return;
   }
-  const linhas = [
-    `<div class="rampa" style="background:${cssRampa()}"></div>`,
-    `<div class="rampa-rot"><span>1 viagem</span><span>${num(R.maxC)} viagens</span></div>`,
-    `<div class="fita" style="margin-top:.45rem"><i style="width:22px;height:3px;background:rgb(${corVolume(1).join(',')})"></i> trecho mais carregado <b style="margin-left:auto;color:var(--txt)">${num(R.maxC)}</b></div>`,
-    `<div class="fita"><i style="width:22px;height:3px;background:rgb(${GELO.join(',')})"></i> saída rumo à cidade vizinha <b style="margin-left:auto;color:var(--txt)">${num(R.pernas.reduce((a, p) => a + p.n, 0))}</b></div>`,
-  ];
+  /* Duas legendas, porque são duas perguntas. Individuais: quem é cada fio (a cor é a
+     categoria da leitura). Agregado: quanto passa em cada trecho (a cor é o volume). */
+  const linhas = [];
+  if (!S.agregar) {
+    const lista = S.modo === 'periodo' ? PERIODO : MODAL;
+    const cont = {};
+    for (const f of R.fios) { const k = S.modo === 'periodo' ? f.a.periodo : f.a.modal;
+      cont[k] = (cont[k] || 0) + 1; }
+    linhas.push(`<div class="fita" style="margin-bottom:.4rem"><b style="color:var(--txt)">${num(R.fios.length)}</b>&nbsp;fios — um por leitura roteada</div>`);
+    linhas.push(...lista.filter(([k]) => cont[k])
+      .map(([k, r, c]) => `<div class="item"><i style="background:rgb(${c.join(',')})"></i>
+        ${esc(r)} <b>${num(cont[k])}</b></div>`));
+  } else {
+    linhas.push(
+      `<div class="rampa" style="background:${cssRampa()}"></div>`,
+      `<div class="rampa-rot"><span>1 viagem</span><span>${num(R.maxC)} viagens</span></div>`,
+      `<div class="fita" style="margin-top:.45rem"><i style="width:22px;height:3px;background:rgb(${corVolume(1).join(',')})"></i> trecho mais carregado <b style="margin-left:auto;color:var(--txt)">${num(R.maxC)}</b></div>`,
+      `<div class="fita"><i style="width:22px;height:3px;background:rgb(${GELO.join(',')})"></i> saída rumo à cidade vizinha <b style="margin-left:auto;color:var(--txt)">${num(R.pernas.reduce((a, p) => a + p.n, 0))}</b></div>`);
+  }
   if (R.foraMalha) linhas.push(
     `<div class="fita"><i style="width:22px;height:2px;background:rgba(150,168,188,.55)"></i> fora da malha — reta, sem fingir rua <b style="margin-left:auto;color:var(--txt)">${num(R.foraMalha)}</b></div>`);
   if (R.curtas) linhas.push(
@@ -1124,9 +1253,14 @@ function pintarLegendaRotas() {
   if (R.semDestino) linhas.push(
     `<div class="fita"><i style="width:9px;height:9px;border:1.5px solid #ffd23f;background:none;border-radius:50%"></i> destino não informado — anel no ponto <b style="margin-left:auto;color:var(--txt)">${num(R.semDestino)}</b></div>`);
   $('leg-itens').innerHTML = linhas.join('');
-  $('leg-nota').innerHTML = '<b>largura, cor e altura da fita = nº de viagens naquele trecho de rua.</b><br>'
-    + `caminho mais curto no grafo viário do OSM (${num((S.G && S.G.meta.km) || 0)} km de malha), `
-    + 'com peso menor nas arteriais. <b>' + num(R.naMalha) + '</b> viagens rotearam pela malha.';
+  const M = (S.G && S.G.meta) || {};
+  $('leg-nota').innerHTML = (S.agregar
+      ? '<b>largura, cor e altura da fita = nº de viagens naquele trecho de rua.</b><br>'
+      : '<b>uma linha por leitura</b>, na faixa lateral dela — fios lado a lado, não um borrão.<br>')
+    + `caminho mais curto na malha do <b>IBGE (Censo 2022)</b>: ${num(M.km || 0)} km, `
+    + `${num(M.faces_ibge || 0)} faces de logradouro`
+    + (M.osm_rural ? ` + ${num(M.osm_rural)} vias rurais do OSM` : '')
+    + `. Peso menor nas arteriais. <b>${num(R.naMalha)}</b> viagens rotearam pela malha.`;
 }
 
 /* O contador antigo dizia "N SEM COORDENADA" e o dono leu aquilo como PERDA DE DADO.
@@ -1252,11 +1386,30 @@ function montarFiltro() {
   if ($('filtro').value !== S.filtro) { S.filtro = ''; $('filtro').value = ''; montarRotas(); }
 }
 $('filtro').onchange = (ev) => { S.filtro = ev.target.value; montarRotas(); desenhar(); pintarLegenda(); };
+
+/* Quem manda no par "Cor por"/"Filtrar" não é mais só a vista, é o que a COR está dizendo:
+ *   arcos          → cor = período/modal  → "Cor por"
+ *   rotas + fios   → cor = período/modal  → "Cor por" (cada fio é UMA leitura: não há o
+ *                                           que agregar, então a cor pode ser honesta)
+ *   rotas + fitas  → cor = volume         → "Filtrar"                                   */
+function trocarControles() {
+  const rotas = S.vis === 'rotas';
+  $('grp-agregar').hidden = !rotas;
+  $('grp-cor').hidden = rotas && S.agregar;
+  $('grp-filtro').hidden = !(rotas && S.agregar);
+}
 $('vis').onchange = (ev) => {
   S.vis = ev.target.value;
   const rotas = S.vis === 'rotas';
-  $('grp-cor').hidden = rotas; $('grp-filtro').hidden = !rotas;
+  trocarControles();
   if (rotas) { montarFiltro(); if (!S.rotas) montarRotas(); }
+  S.anim++; desenhar(); pintarLegenda();
+};
+$('agregar').onchange = (ev) => {
+  S.agregar = ev.target.checked;
+  trocarControles();
+  if (S.agregar) montarFiltro();
+  else if (S.filtro) { S.filtro = ''; $('filtro').value = ''; montarRotas(); }
   S.anim++; desenhar(); pintarLegenda();
 };
 $('btn-agora').onclick = buscar;
