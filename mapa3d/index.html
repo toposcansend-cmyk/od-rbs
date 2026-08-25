@@ -936,7 +936,11 @@ function eixoDoTempo(fios) {
     f.base = ts.map((x) => x * esc);
     if (f.base[f.base.length - 1] > maxBase) maxBase = f.base[f.base.length - 1];
   }
-  const CICLO = Math.max(600, maxBase * 1.6);
+  /* 1.08 e não 1.6: a folga só serve para a viagem MAIS LONGA não ficar colada em t=0.
+     Medido sobre as 84 rotas do D1 — de 1.02 a 1.60 a densidade na tela é a mesma
+     (mediana ~30 cometas acesos, pico ~45), muda só o comprimento do laço: 29 s contra
+     45 s. Numa parede, laço curto ganha. Com 1.08 o ciclo fecha em ~23 s. */
+  const CICLO = Math.max(600, maxBase * 1.08);
   for (const f of fios) {
     const dur = f.base[f.base.length - 1];
     const off = espalha(f.a.id + '|t') * Math.max(0, CICLO - dur);
@@ -1345,9 +1349,13 @@ function quadro() {
   if (document.hidden || !S.deck) return;
   const t = performance.now();
   S.pulso = 1 + Math.sin(t / 1250) * 0.09;
-  /* o relógio dos cometas. t/6 => 1.000 unidades de tempo a cada 6 s de parede. É prop
-     uniforme: muda todo quadro sem regerar atributo nenhum. */
-  S.tFluxo = (t / 6) % (S.rotas ? S.rotas.loop : 3000);
+  /* O relógio dos cometas. t/4.5 => 1.000 unidades de tempo a cada 4,5 s de parede.
+     Calibrado sobre as rotas do D1, não escolhido no olho: com este divisor o laço
+     inteiro da cidade fecha em ~23 s, o pedestre mediano leva 3,5 s para cruzar o
+     caminho dele e o carro mediano 0,6 s. É essa razão de 6× na TELA que faz a frase
+     da legenda ser verdade em vez de propaganda. É prop uniforme: muda todo quadro sem
+     regerar atributo nenhum. */
+  S.tFluxo = (t / 4.5) % (S.rotas ? S.rotas.loop : 3000);
   /* mexer no S.anim é o que obriga a reavaliar cor e largura por arco: só durante o
      flash. Fora dele, o rebuild das camadas é diff de referência — não regera atributo. */
   if (Date.now() < S.flashAte) S.anim = t | 0;
