@@ -246,7 +246,7 @@ const S = {
   primeiraCarga: true,      // a 1ª leva não pisca: seriam 121 flashes de uma vez
   centroides: new Map(), pontos: [], vias: null, limite: null,
   externos: [], cidades: [],
-  deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1,
+  deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1, enquadrouCidades: false,
 };
 const FLASH_MS = 2000;
 
@@ -283,6 +283,14 @@ async function buscar() {
     S.erro = ''; pintarErro();
     S.bruto = j; S.buscadoEm = Date.now();
     montarArcos(j);
+    /* uma ÚNICA vez, quando as cidades vizinhas aparecem: reenquadra para caberem —
+       senão a viagem para Curitiba sai pela borda de baixo e ninguém vê onde termina.
+       Depois disso a câmera é do usuário; poll nenhum mexe nela de novo. */
+    if (!S.enquadrouCidades && S.cidades.length && S.deck) {
+      S.enquadrouCidades = true;
+      S.vista = enquadrar();
+      S.deck.setProps({ initialViewState: { ...S.vista, transitionDuration: 900 } });
+    }
     desenhar();
     pintarContador();
     $('dia').textContent = `${j.data_hoje} · um arco por entrevista · origem → destino`;
@@ -450,8 +458,10 @@ async function carregarBase() {
 
 /* enquadramento do município, calculado aqui para não depender de API de viewport */
 function enquadrar() {
-  const pts = (S.limite && S.limite.length) ? S.limite
-            : S.pontos.map((p) => [p.lon, p.lat]);
+  /* o palco é o município MAIS as sedes que os arcos alcançam: sem elas, a viagem para
+     Curitiba sai pela borda de baixo e o dono nunca vê onde ela termina. */
+  const pts = ((S.limite && S.limite.length) ? S.limite : S.pontos.map((p) => [p.lon, p.lat]))
+    .concat(S.cidades.map((c) => c.pos));
   if (!pts.length) return { longitude: -49.31, latitude: -25.19, zoom: 10.2, pitch: 45, bearing: 0 };
   let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
   for (const c of pts) { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]); }
