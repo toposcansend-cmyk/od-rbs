@@ -150,9 +150,61 @@ export function validar(r, ctx = {}) {
     if (idade > 120) C('V07', 'O fix de GPS está com mais de 120 s. Pedindo novo antes de salvar.');
   }
 
+  /* V08 de DOIS BRAÇOS (0.9.17) — regra instrumentada sobre as 148 linhas reais do D1.
+   *
+   * A regra antiga comparava normalizar(logradouro + numero + bairro). Quando os dois lados
+   * vinham de `gps_perto` (logradouro vazio, bairro = o do ponto) ou da aba Bairro, a chave
+   * inteira COLAPSAVA no nome do bairro: no Centro, todo par "veio do Centro / vai pro Centro"
+   * ficava bit a bit idêntico. Medido: disparou em 18 das 148 (12,2%), e 15 desses 18 tinham
+   * logradouro VAZIO dos DOIS lados — ou seja, 83% do alarme era a chave colapsando, não
+   * endereço repetido. Depois de ~10 avisos que não diziam nada, o pesquisador passou a tocar
+   * "Finalizar" sem ler, e as 20 leituras com origem=destino passaram por um modal que dizia
+   * exatamente isso. Aviso que não distingue não protege.
+   *
+   *   braço TEXTO ..... só compara a chave quando os DOIS lados têm logradouro preenchido.
+   *                     Bairro contra bairro deixa de ser comparado. 3/148 (2,0%) no D1.
+   *   braço DISTÂNCIA . coordenada contra coordenada, que é o que não mente: dois rótulos
+   *                     "Centro" e "Centro" podem ser o mesmo ponto ou 3 km de distância.
+   *
+   * O CORTE É 25 m, não 100 m, e isso foi escolhido pelos dados, não por gosto. Medido sobre
+   * os pares reais do D1: a 100 m a regra pega 5 viagens de extremos NOMEADOS e DIFERENTES —
+   * "Rua Sete de Abril → Shopping Cardoso" (bicicleta, 10 min, 44 m), "Rua Doutor Zony →
+   * DETRAN" (a pé, 5 min, 80 m) e três "Parada de Ônibus → Prefeitura" (79 m). São viagens
+   * curtas legítimas, a pé e de bicicleta — justamente a categoria mais escassa e mais
+   * valiosa da pesquisa, e a que a interceptação mais perde. Gritar nelas seria repetir o
+   * erro do D1 por um mecanismo novo. A 25 m, NENHUM disparo tem os dois extremos com nomes
+   * diferentes: 25 m é menor que o ruído de dois fixes de GPS no mesmo lugar, então "abaixo
+   * de 25 m" quer dizer "é a mesma coordenada", não "é pertinho".
+   *
+   * V08 é `confirma`, nunca bloqueia: o pior caso de um erro aqui é um aviso a menos, jamais
+   * uma entrevista perdida. */
+  const V08_PRECISAO_MAX_M = 150;   // acima disso a coordenada não sustenta comparação fina
+  const V08_DIST_MAX_M = 25;        // abaixo do ruído de GPS = mesma coordenada
+  const numOuNull = (v) => {
+    if (v === '' || v === null || v === undefined) return null;
+    const n = Number(v);
+    return isFinite(n) ? n : null;
+  };
   const chave = (p) => normalizar(`${r[p + '_logradouro'] || ''} ${r[p + '_numero'] || ''} ${r[p + '_bairro'] || ''}`);
-  if (chave('origem') && chave('origem') === chave('destino'))
-    C('V08', 'Origem e destino são o mesmo endereço. Tem certeza?');
+  const temLogradouro = (p) => String(r[p + '_logradouro'] || '').trim() !== '';
+  /* nível 3 manual ("Usar como digitei") grava lat/lon nulos e precisao_m VAZIA: cai fora
+     do braço distância por construção, que é o certo — sem coordenada não há o que medir. */
+  const pontoDe = (p) => {
+    const la = numOuNull(r[p + '_lat']), lo = numOuNull(r[p + '_lon']), pr = numOuNull(r[p + '_precisao_m']);
+    return (la !== null && lo !== null && pr !== null && pr <= V08_PRECISAO_MAX_M) ? { la, lo } : null;
+  };
+  const o8 = pontoDe('origem'), d8 = pontoDe('destino');
+  const dist8 = (o8 && d8) ? haversine(o8.la, o8.lo, d8.la, d8.lo) : null;
+  const v08Texto = temLogradouro('origem') && temLogradouro('destino') && chave('origem') === chave('destino');
+  const v08Dist = dist8 !== null && dist8 < V08_DIST_MAX_M;
+  /* Duas mensagens porque são dois fatos diferentes, e aviso que descreve errado o que houve
+     ensina a contornar tão rápido quanto aviso vago. O braço da distância é o da inversão:
+     a coordenada do destino é a do celular do pesquisador. O braço do texto é só endereço
+     repetido — que numa viagem de volta é o dado CERTO, e por isso a mensagem não acusa. */
+  if (v08Dist)
+    C('V08', 'Origem e destino no MESMO ponto onde você está. O destino é para onde a pessoa VAI — pergunte a rua ou uma referência.');
+  else if (v08Texto)
+    C('V08', 'Origem e destino têm o mesmo endereço. Se for uma volta, está certo — se não for, pergunte a rua do destino.');
 
   if (isFinite(Number(r.duracao_s)) && Number(r.duracao_s) < 45)
     C('V09', `Entrevista de ${r.duracao_s} s. Confirma que foi real?`);

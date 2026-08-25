@@ -14,7 +14,7 @@
  * aconteceu no 0.9.2 → 1.0: "app 0.9.2 · schema 1.0", e o V03 velho bloqueava todo
  * salvamento pedindo um campo `motivo` que o questionário novo não tem mais.
  * O test/fila_test.mjs falha se este número divergir do config.js. */
-const BUILD = '0.9.16';
+const BUILD = '0.9.17';
 const CACHE = `od-rbs-v${BUILD}`;
 
 const SHELL = [

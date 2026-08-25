@@ -761,6 +761,13 @@ function telaCascata(box, t) {
   const jaTem = S.r[p + '_nivel'];
   box.innerHTML = `
     <h2 class="pergunta">${esc(t.titulo)}</h2>
+    ${/* Linha de contexto (0.9.17): o aviso do V08 só aparece no modal do salvar, quando a
+          pessoa entrevistada JÁ FOI EMBORA e não há mais como perguntar de novo — está
+          estruturalmente condenado a ser ignorado. Esta linha chega com a pessoa presente,
+          que é o único momento em que o dado ainda pode ser corrigido. É uma linha no
+          template que já existe: não cria tela, ramo de navegação nem toque. */
+      p === 'destino' && S.r.origem_nivel
+        ? `<p class="ctx-origem">Origem: <b>${esc(resumoLocal('origem'))}</b> — o destino tem de ser OUTRO lugar</p>` : ''}
     ${jaTem ? `<div class="aviso ok">Registrado: <b>${esc(resumoLocal(p))}</b> (nível ${jaTem})</div>` : ''}
     ${(t.atalhos || []).length ? `<div class="chips c2" id="c-atalhos">${t.atalhos.map((a) =>
       `<button class="chip" data-a="${esc(a.id)}">${esc(a.rotulo)}</button>`).join('')}</div><div style="height:.6rem"></div>` : ''}
@@ -1188,12 +1195,25 @@ function telaResumo(box, t) {
     const tx = String(r[campo + '_outro'] || '').trim();
     return tx ? `${base} <small>(“${esc(tx)}”)</small>` : base;
   };
+  /* Distância O→D — SÓ EXIBIÇÃO: não valida, não bloqueia, não muda toque nenhum.
+     Existe porque texto esconde exatamente o que quebrou no D1: dois rótulos "Centro" e
+     "Centro" tanto podem ser a mesma coordenada quanto 3 km. A distância é o número que
+     não mente, e aparece na tela onde o pesquisador confere antes de finalizar.
+     Vermelho abaixo de 100 m: mais largo que o corte do V08 (25 m) de propósito — aqui
+     custa só um olhar, então marca também o caso limítrofe que não merece um modal. */
+  const dOD = (() => {
+    const n = (v) => { if (v === '' || v === null || v === undefined) return null; const x = Number(v); return isFinite(x) ? x : null; };
+    const a = n(r.origem_lat), b = n(r.origem_lon), c = n(r.destino_lat), d = n(r.destino_lon);
+    return (a !== null && b !== null && c !== null && d !== null) ? haversine(a, b, c, d) : null;
+  })();
   box.innerHTML = `
     <h2 class="pergunta">${esc(t.titulo)}</h2>
     <div class="resumo"><dl>
       <dt>Ponto</dt><dd>${esc(r.ponto_id)} · ${esc(r.ponto_nome)}</dd>
       <dt>Origem</dt><dd>${esc(resumoLocal('origem'))} <small>(nível ${esc(r.origem_nivel || '—')})</small></dd>
       <dt>Destino</dt><dd>${esc(resumoLocal('destino'))} <small>(nível ${esc(r.destino_nivel || '—')})</small></dd>
+      ${dOD !== null ? `<dt>O→D</dt><dd${dOD < 100 ? ' class="perto"' : ''}>${dOD} m${
+        dOD < 100 ? ' <small>— confira se o destino é mesmo aqui</small>' : ''}</dd>` : ''}
       <dt>Modo</dt><dd>${esc(rot('modal', r.modal))}${r.acesso_onibus
         ? ` <small>(acesso: ${esc(rot('acesso_onibus', r.acesso_onibus))})</small>` : ''}</dd>
       <dt>Motivo</dt><dd>${motivo('origem_motivo')} → ${motivo('destino_motivo')}</dd>
@@ -1252,6 +1272,7 @@ async function salvar() {
     el('v-msg').innerHTML = `<div class="aviso erro"><b>Não dá para salvar ainda:</b><ul>${
       v.bloqueios.map((b) => `<li>${esc(b.id)} — ${esc(b.msg)}</li>`).join('')}</ul></div>`;
     el('v-msg').scrollIntoView({ block: 'center' });
+    navigator.vibrate?.([25, 60, 25]);        // padrão "parou": distinto do toque único do salvo
     return;
   }
   /* Dupla confirmação da tela final (pedido do coordenador, 24/08): salvar é irreversível
@@ -1278,6 +1299,11 @@ async function salvar() {
   await put('respostas', {
     uuid: r.uuid, status: 'pendente', dia: hoje(), criado_em: r.ts_fim, payload: { ...r },
   });
+  /* Confirmação TÁTIL do gravado (0.9.17). Ataca o sintoma real do D1 — "deu OK e voltou pra
+     origem", a incerteza sobre se registrou. Aditivo puro: sem permissão, degrada em silêncio
+     no iPhone. Fica só aqui e no bloqueio: vibrar a cada avanço de tela, com 9 telas e 150
+     entrevistas, viraria ruído tátil e deixaria de significar coisa alguma. */
+  navigator.vibrate?.(12);
   toast('Salvo. Já está na fila.', 'ok');
   depois();
 }
