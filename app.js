@@ -1,4 +1,4 @@
-/* app.js — PWA de coleta da pesquisa OD de Rio Branco do Sul.
+﻿/* app.js — PWA de coleta da pesquisa OD de Rio Branco do Sul.
  * Renderer SCHEMA-DRIVEN: as telas 1..9 saem de data/schema.json, não daqui.
  * Toda a lógica de fila/ACK/validação vive em queue.js (puro, testado em Node).
  */
@@ -445,7 +445,8 @@ async function pintarCabecalho() {
 }
 
 /* ================================================================ router */
-function irPara(vista) { S.vista = vista; render(); window.scrollTo(0, 0); }
+const topo = () => { document.body.scrollTo(0, 0); window.scrollTo(0, 0); };  // body e o rolador (24/08)
+function irPara(vista) { S.vista = vista; render(); topo(); }
 
 function render() {
   switch (S.vista) {
@@ -639,7 +640,7 @@ function novaEntrevista() {
 function proximaTela() {
   const ts = telasAtivas();
   if (S.tela >= ts.length - 1) return;
-  S.tela++; render(); window.scrollTo(0, 0);
+  S.tela++; render(); topo();
 }
 /** Tem resposta dentro? Serve para não perguntar "descartar?" numa entrevista em branco. */
 const entrevistaComecou = () => !!(S.r && (S.r.consentimento_verbal === true ||
@@ -659,7 +660,7 @@ async function telaAnterior() {
     }
     S.r = null; wakeOff(); irPara('ponto'); return;
   }
-  S.tela--; render(); window.scrollTo(0, 0);
+  S.tela--; render(); topo();
 }
 
 function barraProgresso() {

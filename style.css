@@ -31,15 +31,21 @@ html, body {
   background: var(--fundo);
   color: var(--tinta);
   font: 18px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  overflow-x: hidden;
-  overscroll-behavior-y: contain;
   -webkit-text-size-adjust: 100%;
 }
-/* 100dvh (com fallback svh): a barra do Safari/Chrome no pé da tela é DINÂMICA e,
-   com svh, cobria o fim de todas as páginas — "a última página não rola" (Luiz e
-   Danielle, 24/08 19h44, vídeo). A folga extra no #main garante que o último botão
-   respira acima da barra em qualquer navegador. */
-body { display: flex; flex-direction: column; min-height: 100svh; min-height: 100dvh; }
+/* O BODY é o rolador, não o documento (24/08 21h40). A rolagem do documento em
+   celular depende da barra dinâmica do navegador e já falhou 3× em telas longas
+   (resumo do Luiz, perfil/Escolaridade do Luiz, menu da Danielle). Com html travado
+   e body rolando por conta própria, a tela sempre desce até o fim — em qualquer
+   navegador, instalado ou não. O #hdr continua sticky DENTRO do body. */
+html { height: 100%; overflow: hidden; }
+body {
+  height: 100%;
+  overflow-y: auto; overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  display: flex; flex-direction: column;
+}
 
 /* ------------------------------------------------------------ cabecalho (tela 0) */
 #hdr {
