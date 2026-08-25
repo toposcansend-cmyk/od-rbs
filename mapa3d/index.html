@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Mapa 3D ao vivo — OD RBS</title>
+<link rel="icon" href="../icons/icon-192.png">
+<style>
+/* ── Sala escura. Cada entrevista é UM arco: origem → destino, sobre o município
+ * desenhado dos nossos próprios dados. Zero tile externo, zero CDN: o deck.gl vive
+ * em ../vendor/, do mesmo jeito que o Leaflet da Central.                        */
+:root{
+  --bg:#070b10; --bg2:#0f151d; --bg3:#18202b; --linha:#26313f;
+  --txt:#e6edf3; --txt2:#9aa7b4; --txt3:#66768a;
+  --verde:#2ea043; --verde-c:#3fb950; --amarelo:#d29922; --vermelho:#da3633; --azul:#388bfd;
+  /* as 4 cores dos períodos — vivas o bastante para durar num projetor */
+  --manha:#3dd6f5; --meio:#ffd23f; --tarde:#ff6b35; --fim:#b47cff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--txt);
+  font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-variant-numeric:tabular-nums}
+h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--txt2);
+   margin:0 0 .5rem;font-weight:700}
+button,select{background:var(--bg3);color:var(--txt);border:1px solid var(--linha);
+  border-radius:9px;padding:.45rem .8rem;font:inherit;font-weight:600;cursor:pointer}
+button:hover,select:hover{border-color:var(--txt3)}
+
+/* palco */
+#cena{position:fixed;inset:0;background:
+  radial-gradient(120% 90% at 50% 12%, #101a26 0%, #070b10 62%, #04070a 100%)}
+#lona{width:100%;height:100%;display:block}
+
+/* HUD */
+.hud{position:fixed;z-index:10;pointer-events:none}
+.hud>*{pointer-events:auto}
+#topo{top:0;left:0;right:0;display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;
+  padding:.85rem 1rem;background:linear-gradient(#070b10ee,#070b1000)}
+.tit{font-size:16px;font-weight:800;letter-spacing:.01em;text-shadow:0 2px 10px #000}
+.tit i{font-style:normal;color:var(--verde-c)}
+.sub{color:var(--txt3);font-size:12px}
+.espaco{flex:1 1 auto}
+#ctrl{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+#ctrl label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt2);font-weight:700}
+
+/* placar grande — é o número que o diretor lê de longe */
+#contador{position:fixed;left:1rem;bottom:1rem;z-index:10;
+  background:#0f151ddd;border:1px solid var(--linha);border-radius:14px;
+  padding:.75rem 1rem;backdrop-filter:blur(6px);max-width:min(92vw,420px)}
+#contador .grande{display:flex;align-items:baseline;gap:.55rem;flex-wrap:wrap;line-height:1}
+#contador .n{font-size:38px;font-weight:800;letter-spacing:-.01em}
+#contador .n.arcos{color:var(--verde-c)}
+#contador .n.fora{font-size:26px;color:var(--amarelo)}
+#contador .rot{font-size:12px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+#contador .pe{font-size:12px;color:var(--txt3);margin-top:.4rem;line-height:1.4}
+#contador .pe b{color:var(--txt2)}
+#idade{font-size:12.5px;color:var(--txt2);margin-top:.35rem}
+#idade b{color:var(--txt)}
+#idade.velho b{color:var(--amarelo)} #idade.erro b{color:#ff7b72}
+.vivo{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--verde-c);
+  margin-right:.35rem;vertical-align:baseline;animation:bat 2.4s ease-in-out infinite}
+@keyframes bat{0%,100%{opacity:.25;box-shadow:0 0 0 0 #3fb95000}50%{opacity:1;box-shadow:0 0 0 5px #3fb95022}}
+
+/* legenda */
+#legenda{position:fixed;right:1rem;bottom:1rem;z-index:10;
+  background:#0f151ddd;border:1px solid var(--linha);border-radius:14px;
+  padding:.7rem .85rem;backdrop-filter:blur(6px);max-width:min(92vw,300px)}
+.item{display:flex;align-items:center;gap:.5rem;font-size:12.5px;color:var(--txt2);padding:.11rem 0}
+.item i{width:22px;height:3px;border-radius:2px;flex:0 0 auto}
+.item b{color:var(--txt);font-weight:700;margin-left:auto;font-size:12px}
+#legenda .nota{font-size:11px;color:var(--txt3);margin-top:.5rem;line-height:1.4;
+  border-top:1px solid var(--linha);padding-top:.45rem}
+
+/* rodapé */
+#rodape{position:fixed;left:0;right:0;bottom:0;z-index:5;text-align:center;
+  font-size:11.5px;color:var(--txt3);padding:.3rem 1rem .35rem;
+  background:linear-gradient(#070b1000,#070b10cc);pointer-events:none}
+#rodape .rj{color:#e8a3a0}
+
+/* portão do PIN — mesmo fluxo da aba Dados da Central */
+#gate{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;
+  background:#04070ae8;backdrop-filter:blur(3px)}
+.caixa{width:min(94vw,350px);background:var(--bg2);border:1px solid var(--linha);
+  border-radius:16px;padding:1.15rem 1.2rem 1.35rem;text-align:center;box-shadow:0 24px 70px #000a}
+.caixa p{color:var(--txt2);font-size:13.5px;margin:.35rem 0 1rem}
+.pinvis{font-size:28px;letter-spacing:.4em;height:36px;color:var(--txt3);text-indent:.4em}
+.pinvis b{color:var(--verde-c)}
+.teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.7rem}
+.teclado button{padding:.75rem 0;font-size:19px;width:100%}
+.teclado button.ok{background:var(--verde);border-color:var(--verde);color:#04140a}
+.gate-msg{margin-top:.75rem;font-size:13px;min-height:1.3em;color:var(--txt3)}
+.gate-msg.ruim{color:#ff7b72;font-weight:600}
+/* o [hidden] do HTML perde do display:flex acima (seletor de ID vence) — trava aqui */
+#gate[hidden]{display:none}
+
+#erro{position:fixed;top:3.7rem;left:50%;transform:translateX(-50%);z-index:20;
+  background:#2a1113;border:1px solid var(--vermelho);color:#ffb4ae;border-radius:10px;
+  padding:.5rem .8rem;font-size:13px;max-width:min(92vw,620px)}
+.dica{position:fixed;top:3.7rem;right:1rem;z-index:9;font-size:11.5px;color:var(--txt3);
+  text-align:right;line-height:1.5;text-shadow:0 1px 6px #000}
+
+.deck-tooltip{font:12.5px/1.5 system-ui,sans-serif !important;background:#18202bf2 !important;
+  color:#e6edf3 !important;padding:.55rem .7rem !important;max-width:300px !important;
+  border:1px solid #26313f;border-radius:10px;box-shadow:0 8px 26px #000a}
+
+@media (max-width:720px){
+  #contador .n{font-size:29px} #legenda{display:none}
+  .dica{display:none} .tit{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<div id="cena"><canvas id="lona"></canvas></div>
+
+<div class="hud" id="topo">
+  <div>
+    <div class="tit">MAPA 3D <i>—</i> Pesquisa OD Rio Branco do Sul</div>
+    <div class="sub" id="dia">um arco por entrevista · origem → destino</div>
+  </div>
+  <div class="espaco"></div>
+  <div id="ctrl">
+    <label for="modo">Cor por</label>
+    <select id="modo">
+      <option value="periodo" selected>Período do dia</option>
+      <option value="modal">Modo de transporte</option>
+    </select>
+    <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
+    <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
+    <button id="btn-travar" type="button" title="Esquecer o acesso do gestor nesta aba">🔒</button>
+  </div>
+</div>
+
+<div class="dica">arrastar = deslocar · roda = zoom<br>ctrl/botão direito + arrastar = girar e inclinar</div>
+
+<div id="contador">
+  <div class="grande">
+    <span class="n" id="c-leituras">—</span><span class="rot">leituras</span>
+    <span class="n arcos" id="c-arcos">—</span><span class="rot">arcos no ar</span>
+  </div>
+  <div class="grande" style="margin-top:.3rem">
+    <span class="n fora" id="c-fora">—</span><span class="rot" id="c-fora-rot">sem coordenada</span>
+  </div>
+  <div class="pe" id="c-detalhe">—</div>
+  <div id="idade"><span class="vivo"></span>atualizado há <b>—</b></div>
+</div>
+
+<div id="legenda">
+  <h2 id="leg-tit">Período do dia</h2>
+  <div id="leg-itens"></div>
+  <div class="nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b></div>
+</div>
+
+<div id="rodape"><span class="rj">arcos individuais — uso interno</span> · o produto final ao cliente é agregado por zona</div>
+
+<div id="gate">
+  <div class="caixa">
+    <h2>Mapa 3D ao vivo — acesso do gestor</h2>
+    <p>Esta tela desenha as entrevistas <b>uma a uma</b>, com coordenada de origem e destino.<br>Digite o <b>PIN do gestor</b> (G01).</p>
+    <div class="pinvis" id="pinvis">····</div>
+    <div class="teclado" id="teclado">
+      <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+      <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+      <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+      <button type="button" data-k="apagar">←</button><button type="button" data-k="0">0</button>
+      <button type="button" class="ok" data-k="ok">OK</button>
+    </div>
+    <div class="gate-msg" id="gate-msg"></div>
+  </div>
+</div>
+
+<script src="../vendor/deckgl.min.js"></script>
+<script type="module">
+/* A URL /exec vem do config.js; se o módulo falhar (build em troca), cai no literal —
+   é a MESMA URL pinada, pública, e a vitrine não pode ficar cega por isso. */
+const API_FALLBACK = 'https://script.google.com/macros/s/AKfycbz8jtDJSicgd2UoRHCyPBQ4Qe0PJZjzbC1yXAAcWukjNQw3iYSxZzPorgYVMeTLL947Gg/exec';
+let API_URL = API_FALLBACK;
+try { const m = await import('../config.js'); if (m.API_URL) API_URL = m.API_URL; } catch (e) {}
+
+const $ = (id) => document.getElementById(id);
+const num = (n) => (n ?? 0).toLocaleString('pt-BR');
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nn = (v) => { if (v === '' || v === null || v === undefined) return null;
+  const x = typeof v === 'number' ? v : Number(String(v).trim().replace(',', '.'));
+  return isFinite(x) ? x : null; };
+/* chave de comparação de lugar: sem acento, sem caixa, sem espaço sobrando */
+const chave = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '') .toLowerCase().replace(/\s+/g, ' ').trim();
+
+/* ═══ paletas ═══════════════════════════════════════════════════════════════════ */
+const PERIODO = [
+  ['manha',      'Manhã',      [ 61, 214, 245]],
+  ['meio_dia',   'Meio-dia',   [255, 210,  63]],
+  ['tarde',      'Tarde',      [255, 107,  53]],
+  ['fim_de_dia', 'Fim de dia', [180, 124, 255]],
+];
+const MODAL = [
+  ['a_pe',               'A pé',        [ 86, 211, 100]],
+  ['bicicleta',          'Bicicleta',   [ 61, 214, 245]],
+  ['onibus',             'Ônibus',      [255, 210,  63]],
+  ['transporte_escolar', 'Tp. escolar', [255, 159,  28]],
+  ['moto',               'Moto',        [255, 107, 107]],
+  ['carro',              'Carro',       [255,  77, 157]],
+  ['carona',             'Carona',      [180, 124, 255]],
+  ['aplicativo',         'Aplicativo',  [ 77, 139, 255]],
+  ['caminhao',           'Caminhão',    [154, 167, 180]],
+];
+const CINZA = [130, 145, 162];
+const mapaDe = (lista) => { const m = {}; lista.forEach(([k, , c]) => { m[k] = c; }); return m; };
+const COR = { periodo: mapaDe(PERIODO), modal: mapaDe(MODAL) };
+const NOME = {}; [...PERIODO, ...MODAL].forEach(([k, r]) => { NOME[k] = r; });
+
+/* ═══ estado ════════════════════════════════════════════════════════════════════ */
+const S = {
+  token: sessionStorage.getItem('od_central_g01') || '',
+  pin: '', ocupado: false, buscadoEm: 0, erro: '',
+  bruto: null, arcos: [], resumo: null, modo: 'periodo',
+  vistos: new Map(),        // chave da leitura -> instante em que ESTE cliente a viu
+  primeiraCarga: true,      // a 1ª leva não pisca: seriam 121 flashes de uma vez
+  centroides: new Map(), pontos: [], vias: null, limite: null,
+  deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1,
+};
+const FLASH_MS = 2000;
+
+/* ═══ 1. Rede ═══════════════════════════════════════════════════════════════════ */
+async function apiPost(corpo) {
+  const r = await fetch(API_URL, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(corpo), cache: 'no-store',
+  });
+  return JSON.parse(await r.text());
+}
+
+async function buscar() {
+  if (!S.token || S.ocupado) return;
+  S.ocupado = true;
+  try {
+    const j = await apiPost({ action: 'arcos_hoje', pesquisador_id: 'G01', token: S.token });
+    if (!j.ok) {
+      if (/token/i.test(j.erro || '')) { travar('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
+      S.erro = j.erro || 'a API recusou a consulta.'; pintarErro(); return;
+    }
+    S.erro = ''; pintarErro();
+    S.bruto = j; S.buscadoEm = Date.now();
+    montarArcos(j);
+    desenhar();
+    pintarContador();
+    $('dia').textContent = `${j.data_hoje} · um arco por entrevista · origem → destino`;
+    document.title = `${j.total} leituras — Mapa 3D OD RBS`;
+  } catch (e) {
+    S.erro = 'Falha ao consultar a API: ' + e.message + ' — o mapa abaixo é o da última leitura.';
+    pintarErro();
+  } finally { S.ocupado = false; S.primeiraCarga = false; tique(); }
+}
+
+/* ═══ 2. Leitura → arco ═════════════════════════════════════════════════════════
+ * Regra de queda, na ordem:
+ *   1. lat/lon do próprio extremo (é o dado real, nível 1–3 na maioria);
+ *   2. centroide do bairro/localidade, se o nome bater na base de localidades;
+ *   3. fora — e CONTADO. Coordenada não se inventa: destino em outro município
+ *      não tem ponto no nosso cadastro, então vira número, não arco falso.        */
+function extremo(r, p) {
+  const la = nn(r[p + '_lat']), lo = nn(r[p + '_lon']);
+  if (la !== null && lo !== null) return { pos: [lo, la], aprox: false };
+  const c = S.centroides.get(chave(r[p + '_bairro']));
+  if (c) return { pos: [c.lon, c.lat], aprox: true };
+  return null;
+}
+
+/* identidade da leitura para o "novo desde o último poll": o servidor não serve o uuid
+ * (é chave de banco), então a tupla hora+pesquisador+ponto+par de coordenadas faz as
+ * vezes — dois registros iguais nisso tudo no mesmo minuto não existem em campo. */
+const idLeitura = (r) => [r.hora, r.pesquisador_id, r.ponto_id, r.modal,
+  r.origem_lat, r.origem_lon, r.destino_lat, r.destino_lon].join('|');
+
+/* dispersão determinística de ALTURA (não de coordenada): sem isto, as dezenas de
+ * viagens Centro→Centro empilham no mesmo traço e viram uma linha só. A coordenada
+ * continua exata; só o quanto o arco sobe varia ±18%. */
+function espalha(s) {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return ((h >>> 0) % 1000) / 1000;
+}
+
+function montarArcos(j) {
+  const agora = Date.now();
+  const arcos = [];
+  let semCoord = 0, foraMunicipio = 0, aprox = 0;
+  for (const r of (j.linhas || [])) {
+    const o = extremo(r, 'origem'), d = extremo(r, 'destino');
+    if (!o || !d) {
+      semCoord++;
+      const fora = (!o && chave(r.origem_municipio) && chave(r.origem_municipio) !== 'rio branco do sul')
+                || (!d && chave(r.destino_municipio) && chave(r.destino_municipio) !== 'rio branco do sul');
+      if (fora) foraMunicipio++;
+      continue;
+    }
+    if (o.aprox || d.aprox) aprox++;
+    const id = idLeitura(r);
+    if (!S.vistos.has(id)) S.vistos.set(id, S.primeiraCarga ? 0 : agora);
+    arcos.push({
+      id, o: o.pos, d: d.pos, aprox: o.aprox || d.aprox,
+      alt: 0.86 + espalha(id) * 0.34,          // ±18% em torno de 1 → altura ∝ distância
+      periodo: String(r.periodo || ''), modal: String(r.modal || ''),
+      hora: r.hora, pesq: r.pesquisador_id, ponto: r.ponto_id,
+      ob: r.origem_bairro || r.origem_municipio || '—',
+      db: r.destino_bairro || r.destino_municipio || '—',
+      onv: nn(r.origem_nivel), dnv: nn(r.destino_nivel),
+      nasceu: S.vistos.get(id),
+    });
+  }
+  S.arcos = arcos;
+  S.resumo = { total: j.total, com_arco: j.com_arco, sem_coord: j.sem_coord,
+               desenhados: arcos.length, semCoord, foraMunicipio, aprox,
+               truncado: j.truncado, teto: j.teto };
+  /* algum arco nasceu agora? liga a janela de flash */
+  const maisNovo = arcos.reduce((a, x) => Math.max(a, x.nasceu || 0), 0);
+  if (maisNovo && Date.now() - maisNovo < FLASH_MS) S.flashAte = maisNovo + FLASH_MS;
+}
+
+/* ═══ 3. Fundo — o município desenhado dos NOSSOS dados ═════════════════════════ */
+async function carregarBase() {
+  try {
+    const loc = await (await fetch('../data/localidades.json')).json();
+    [...(loc.bairros_urbanos || []), ...(loc.localidades_rurais || [])].forEach((b) => {
+      const k = chave(b.nome);
+      if (k && !S.centroides.has(k) && nn(b.lat) !== null && nn(b.lon) !== null)
+        S.centroides.set(k, { lat: b.lat, lon: b.lon });
+    });
+  } catch (e) { console.warn('[mapa3d] localidades.json indisponível — sem queda por centroide', e); }
+
+  try {
+    const p = await (await fetch('../data/pontos.json', { cache: 'no-store' })).json();
+    S.pontos = (p.pontos || []).filter((x) => nn(x.lat) !== null && nn(x.lon) !== null);
+  } catch (e) { console.warn('[mapa3d] pontos.json indisponível', e); }
+
+  try {
+    const g = await (await fetch('../data/ruas_rbs.geojson')).json();
+    if (g.features?.length) S.vias = { type: 'FeatureCollection', features: g.features };
+    if (g.limite_ring?.length) S.limite = g.limite_ring;
+  } catch (e) { console.warn('[mapa3d] geojson de fundo indisponível — palco sem chão', e); }
+}
+
+/* enquadramento do município, calculado aqui para não depender de API de viewport */
+function enquadrar() {
+  const pts = (S.limite && S.limite.length) ? S.limite
+            : S.pontos.map((p) => [p.lon, p.lat]);
+  if (!pts.length) return { longitude: -49.31, latitude: -25.19, zoom: 10.2, pitch: 45, bearing: 0 };
+  let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+  for (const c of pts) { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]); }
+  const merc = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
+  const w = Math.max(320, innerWidth), h = Math.max(320, innerHeight), pad = 90;
+  const zx = Math.log2(((w - 2 * pad) / 512) / Math.max(1e-9, (x1 - x0) / 360));
+  const zy = Math.log2(((h - 2 * pad) / 512) / Math.max(1e-9, (merc(y1) - merc(y0)) / (2 * Math.PI)));
+  /* −0.55: com pitch 45 o chão foge para o horizonte e os arcos altos precisam de céu */
+  return { longitude: (x0 + x1) / 2, latitude: (y0 + y1) / 2,
+           zoom: Math.min(zx, zy) - 0.55, pitch: 45, bearing: 0 };
+}
+
+/* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
+function corDe(a) { return COR[S.modo][S.modo === 'periodo' ? a.periodo : a.modal] || CINZA; }
+const mix = (c, alvo, t) => [
+  Math.round(c[0] + (alvo[0] - c[0]) * t),
+  Math.round(c[1] + (alvo[1] - c[1]) * t),
+  Math.round(c[2] + (alvo[2] - c[2]) * t)];
+/* quanto de flash resta neste arco: 1 = acabou de chegar, 0 = já é paisagem */
+function brilho(a) {
+  if (!a.nasceu) return 0;
+  const t = (Date.now() - a.nasceu) / FLASH_MS;
+  return t >= 1 ? 0 : (1 - t) * (1 - t);
+}
+
+function camadas() {
+  const L = [];
+  if (S.vias) L.push(new deck.GeoJsonLayer({
+    id: 'vias', data: S.vias, stroked: true, filled: false, pickable: false,
+    getLineColor: [58, 74, 92, 170], lineWidthUnits: 'pixels', getLineWidth: 1,
+    lineWidthMinPixels: 0.7,
+  }));
+  if (S.limite) L.push(new deck.PathLayer({
+    id: 'limite', data: [{ path: S.limite }], getPath: (d) => d.path, pickable: false,
+    getColor: [47, 125, 107, 205], widthUnits: 'pixels', getWidth: 1.6, widthMinPixels: 1.4,
+  }));
+  if (S.pontos.length) L.push(new deck.ScatterplotLayer({
+    id: 'pontos', data: S.pontos, pickable: true,
+    getPosition: (p) => [p.lon, p.lat],
+    radiusUnits: 'pixels', getRadius: 3.4, radiusMinPixels: 2.4,
+    filled: true, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 1,
+    getFillColor: [110, 130, 152, 90], getLineColor: [140, 165, 190, 175],
+  }));
+
+  L.push(new deck.ArcLayer({
+    id: 'arcos', data: S.arcos, pickable: true, greatCircle: false,
+    getSourcePosition: (a) => a.o, getTargetPosition: (a) => a.d,
+    /* direção sem animação cara: a ponta do DESTINO é a clara. */
+    getSourceColor: (a) => { const b = brilho(a), c = mix(corDe(a), [10, 16, 24], 0.42);
+      return [...(b ? mix(c, [255, 255, 255], b * 0.85) : c), a.aprox ? 105 : 150]; },
+    getTargetColor: (a) => { const b = brilho(a), c = corDe(a);
+      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), a.aprox ? 150 : 225]; },
+    getHeight: (a) => a.alt,
+    widthUnits: 'pixels', getWidth: (a) => 1.15 + brilho(a) * 3.6,
+    widthMinPixels: 0.9, widthScale: S.pulso,
+    updateTriggers: { getSourceColor: [S.modo, S.anim], getTargetColor: [S.modo, S.anim],
+                      getWidth: S.anim },
+  }));
+  return L;
+}
+
+function desenhar() { if (S.deck) S.deck.setProps({ layers: camadas() }); }
+
+/* ═══ 5. Motor deck.gl ══════════════════════════════════════════════════════════ */
+function tooltip({ object, layer }) {
+  if (!object) return null;
+  if (layer.id === 'pontos') return { html:
+    `<b>${esc(object.ponto_id)}</b> ${esc(object.nome)}<br>
+     <span style="color:#9aa7b4">${esc(object.bairro || '')} · ${esc(object.tipo)}</span>` };
+  const c = corDe(object);
+  const nv = (n) => n == null ? '' : `<span style="color:${n > 3 ? '#d29922' : '#66768a'}">n${n}</span> `;
+  return { html:
+    `<b style="color:rgb(${c.join(',')})">${esc(NOME[object.modal] || object.modal || '—')}</b>
+     <span style="color:#66768a">· ${esc(NOME[object.periodo] || object.periodo || '—')}</span><br>
+     ${nv(object.onv)}${esc(object.ob)} <span style="color:#3fb950">→</span> ${nv(object.dnv)}${esc(object.db)}<br>
+     <span style="color:#66768a">${esc(object.hora)} · ${esc(object.pesq)} · ${esc(object.ponto)}${
+       object.aprox ? ' · <i style="color:#d29922">ponta por centroide de bairro</i>' : ''}</span>` };
+}
+
+function iniciarDeck() {
+  const Motor = deck.Deck || deck.DeckGL;
+  S.vista = enquadrar();
+  S.deck = new Motor({
+    canvas: 'lona', initialViewState: S.vista, controller: { dragRotate: true, touchRotate: true },
+    layers: camadas(), getTooltip: tooltip,
+    onViewStateChange: ({ viewState }) => { S.vista = viewState; },
+    onError: (e) => { console.error('[deck]', e); S.erro = 'Falha no motor 3D: ' + e.message; pintarErro(); },
+  });
+}
+
+/* Pulso permanente + flash dos novos.
+ * O pulso mexe só em `widthScale` (uniforme: não regera atributo nenhum).
+ * Os acessores de cor/largura só são reavaliados enquanto HÁ flash no ar — fora disso
+ * o mapa fica parado de propósito, e a GPU também. */
+function quadro() {
+  requestAnimationFrame(quadro);
+  if (document.hidden || !S.deck) return;
+  const t = performance.now();
+  S.pulso = 1 + Math.sin(t / 1250) * 0.09;
+  /* mexer no S.anim é o que obriga a reavaliar cor e largura por arco: só durante o
+     flash. Fora dele, o rebuild das camadas é diff de referência — não regera atributo. */
+  if (Date.now() < S.flashAte) S.anim = t | 0;
+  S.deck.setProps({ layers: camadas() });
+}
+
+/* ═══ 6. HUD ════════════════════════════════════════════════════════════════════ */
+function pintarLegenda() {
+  const lista = S.modo === 'periodo' ? PERIODO : MODAL;
+  const cont = {}; S.arcos.forEach((a) => { const k = S.modo === 'periodo' ? a.periodo : a.modal;
+    cont[k] = (cont[k] || 0) + 1; });
+  $('leg-tit').textContent = S.modo === 'periodo' ? 'Período do dia' : 'Modo de transporte';
+  $('leg-itens').innerHTML = lista
+    .filter(([k]) => S.modo === 'periodo' || cont[k])          // 9 modais viram lista morta
+    .map(([k, r, c]) => `<div class="item"><i style="background:rgb(${c.join(',')})"></i>
+      ${esc(r)} <b>${num(cont[k] || 0)}</b></div>`).join('')
+    || '<div class="item">sem arcos ainda</div>';
+}
+
+function pintarContador() {
+  const z = S.resumo; if (!z) return;
+  $('c-leituras').textContent = num(z.total);
+  $('c-arcos').textContent = num(z.desenhados);
+  $('c-fora').textContent = num(z.semCoord);
+  const partes = [];
+  if (z.foraMunicipio) partes.push(`<b>${num(z.foraMunicipio)}</b> com ponta em outro município (nível 6 — o app não captura coordenada fora de RBS)`);
+  if (z.aprox) partes.push(`<b>${num(z.aprox)}</b> arco(s) com uma ponta no centroide do bairro`);
+  if (z.truncado) partes.push(`lista cortada no teto de ${num(z.teto)}`);
+  $('c-detalhe').innerHTML = partes.join(' · ') || 'todas as leituras com coordenada nos dois extremos';
+  pintarLegenda();
+}
+
+function tique() {
+  const s = S.buscadoEm ? Math.round((Date.now() - S.buscadoEm) / 1000) : null;
+  const e = $('idade');
+  e.innerHTML = `<span class="vivo"></span>atualizado há <b>${
+    s == null ? '—' : s < 90 ? s + 's' : Math.round(s / 60) + ' min'}</b>`;
+  e.className = S.erro ? 'erro' : (s != null && s > 150 ? 'velho' : '');
+}
+function pintarErro() {
+  const v = $('erro');
+  if (!S.erro) { if (v) v.remove(); return; }
+  const el = v || Object.assign(document.createElement('div'), { id: 'erro' });
+  el.textContent = S.erro; if (!v) document.body.appendChild(el);
+}
+
+/* ═══ 7. Portão do PIN — mesmo fluxo da aba Dados da Central ════════════════════
+ * O token do gestor NUNCA vem da URL: esta tela mostra coordenada crua de origem e
+ * destino, que é dado sensível de terceiro. Trocado pelo PIN aqui, vive em
+ * sessionStorage (mesma chave da Central) e morre ao fechar a aba.                */
+const pintarPin = () => { $('pinvis').innerHTML = [0, 1, 2, 3].map((i) => i < S.pin.length ? '<b>•</b>' : '·').join(''); };
+function msgGate(t, ruim) { const e = $('gate-msg'); e.textContent = t || ''; e.className = 'gate-msg' + (ruim ? ' ruim' : ''); }
+
+async function tentarPin() {
+  if (S.pin.length !== 4) { msgGate('O PIN tem 4 dígitos.', true); return; }
+  msgGate('conferindo…');
+  try {
+    /* sem_heartbeat: abrir a vitrine não pode carimbar o ultimo_sync do G01 — a Central
+       passaria a jurar que ele está sincronizando com o celular parado no bolso. */
+    const j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin: S.pin, sem_heartbeat: true });
+    if (!j.ok || !j.token) { S.pin = ''; pintarPin(); msgGate(j.erro || 'PIN não confere. Tente de novo.', true); return; }
+    S.token = j.token; sessionStorage.setItem('od_central_g01', j.token);
+    S.pin = ''; pintarPin(); msgGate('');
+    abrir();
+  } catch (e) { msgGate('Sem resposta da API: ' + e.message, true); }
+}
+
+function travar(motivo) {
+  S.token = ''; S.arcos = []; S.resumo = null; S.buscadoEm = 0;
+  sessionStorage.removeItem('od_central_g01');
+  clearInterval(S.timer); S.timer = null;
+  desenhar(); tique();
+  $('gate').hidden = false; S.pin = ''; pintarPin(); msgGate(motivo || '', !!motivo);
+}
+
+function abrir() {
+  $('gate').hidden = true;
+  clearInterval(S.timer);
+  buscar();
+  S.timer = setInterval(buscar, 60000);       // poll de 60 s, cache no-store
+}
+
+$('teclado').onclick = (ev) => {
+  const k = ev.target.dataset && ev.target.dataset.k; if (!k) return;
+  if (k === 'ok') return tentarPin();
+  if (k === 'apagar') S.pin = S.pin.slice(0, -1);
+  else if (S.pin.length < 4) S.pin += k;
+  pintarPin(); msgGate('');
+  if (S.pin.length === 4) tentarPin();
+};
+document.addEventListener('keydown', (ev) => {
+  if ($('gate').hidden) return;
+  if (/^\d$/.test(ev.key)) { if (S.pin.length < 4) S.pin += ev.key; pintarPin(); msgGate(''); if (S.pin.length === 4) tentarPin(); }
+  else if (ev.key === 'Backspace') { S.pin = S.pin.slice(0, -1); pintarPin(); }
+  else if (ev.key === 'Enter') tentarPin();
+});
+
+/* ═══ 8. Controles ══════════════════════════════════════════════════════════════ */
+$('modo').onchange = (ev) => { S.modo = ev.target.value; S.anim++; desenhar(); pintarLegenda(); };
+$('btn-agora').onclick = buscar;
+$('btn-travar').onclick = () => travar('Acesso travado. Digite o PIN para voltar.');
+$('btn-vista').onclick = () => { S.vista = enquadrar(); S.deck.setProps({ initialViewState: { ...S.vista, transitionDuration: 700 } }); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden && S.token) buscar(); });
+
+/* ═══ 9. Arranque ═══════════════════════════════════════════════════════════════ */
+await carregarBase();
+iniciarDeck();
+pintarPin();
+setInterval(tique, 1000); tique();
+requestAnimationFrame(quadro);
+if (S.token) abrir(); else $('gate').hidden = false;
+
+/* Tela AO VIVO: o Service Worker do app é cache-first para tudo que não é `fresco`,
+   então esta página se auto-desaloja do cache para a próxima visita vir da rede.
+   O vendor/deckgl.min.js FICA no cache de propósito — é estático e pesa 1,2 MB. */
+if ('caches' in window) caches.keys().then((ks) => ks.forEach((k) =>
+  caches.open(k).then((c) => c.delete(location.pathname, { ignoreSearch: true })))).catch(() => {});
+</script>
+</body>
+</html>
