@@ -110,6 +110,59 @@ footer a{color:var(--azul)}
   border:1px solid var(--linha);box-shadow:0 6px 22px #0009}
 .leaflet-popup-content{margin:.55rem .7rem;font:13.5px/1.4 system-ui,sans-serif}
 .leaflet-control-zoom a{background:var(--bg3);color:var(--txt);border-color:var(--linha)}
+
+/* ══ abas (Visão | Dados) ═══════════════════════════════════════════════════ */
+nav.abas{display:flex;gap:.3rem}
+.aba{background:transparent;border:1px solid transparent;color:var(--txt2);padding:.42rem .95rem}
+.aba:hover{color:var(--txt);border-color:var(--linha)}
+.aba.sel{background:var(--bg3);border-color:var(--azul);color:var(--txt)}
+
+/* ══ portão do PIN do gestor ════════════════════════════════════════════════ */
+.gate{max-width:340px;margin:2.6rem auto;background:var(--bg2);border:1px solid var(--linha);
+  border-radius:14px;padding:1.1rem 1.2rem 1.3rem;text-align:center}
+.gate h2{margin-bottom:.2rem}
+.gate p{color:var(--txt2);font-size:13.5px;margin:.35rem 0 1rem}
+.pinvis{font-size:28px;letter-spacing:.4em;height:36px;color:var(--txt3);text-indent:.4em}
+.pinvis b{color:var(--verde-c)}
+.teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.7rem}
+.teclado button{padding:.75rem 0;font-size:19px}
+.teclado button.ok{background:var(--verde);border-color:var(--verde);color:#04140a}
+.gate-msg{margin-top:.75rem;font-size:13px;min-height:1.3em;color:var(--txt3)}
+.gate-msg.ruim{color:#ff7b72;font-weight:600}
+
+/* ══ conformidade com o questionário ════════════════════════════════════════ */
+.barra-dados{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin:.9rem 0 .8rem}
+.barra-dados .qq{color:var(--txt3);font-size:12.5px}
+.conf{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:.55rem;margin-bottom:.9rem}
+.ck{background:var(--bg2);border:1px solid var(--linha);border-left:4px solid var(--txt3);
+  border-radius:10px;padding:.5rem .65rem}
+.ck.v{border-left-color:var(--verde)} .ck.a{border-left-color:var(--amarelo)}
+.ck.r{border-left-color:var(--vermelho)}
+.ck.forte{background:#2a1113;border-color:var(--vermelho);border-left-width:5px}
+.ck .rot{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--txt2);font-weight:700}
+.ck .val{font-size:22px;font-weight:800;line-height:1.2;margin-top:.08rem}
+.ck.v .val{color:var(--verde-c)} .ck.a .val{color:var(--amarelo)} .ck.r .val{color:#ff7b72}
+.ck .pe{font-size:11.5px;color:var(--txt3);margin-top:.1rem;line-height:1.35}
+
+/* ══ tabela de linhas cruas ═════════════════════════════════════════════════ */
+.rolo{max-height:calc(100vh - 340px);min-height:300px;overflow:auto;
+  border:1px solid var(--linha);border-radius:10px;background:var(--bg2)}
+table.linhas{font-size:12px;min-width:1180px;border-collapse:separate;border-spacing:0}
+table.linhas th{position:sticky;top:0;z-index:2;background:var(--bg3);white-space:nowrap;
+  padding:.42rem .45rem;border-bottom:1px solid var(--linha)}
+table.linhas td{padding:.32rem .45rem;border-bottom:1px solid #1e2632;vertical-align:top}
+table.linhas tr.bug td{background:#2a1113}
+table.linhas .hh{font-weight:700;white-space:nowrap}
+table.linhas .lug{max-width:230px}
+.nv{color:var(--txt3);font-weight:800;font-size:10.5px}
+.nv.alto{color:var(--amarelo)}
+.al{color:var(--amarelo);font-weight:700}
+.rj{color:#ff7b72;font-weight:800}
+.chip{display:inline-block;border-radius:6px;padding:.02rem .32rem;background:var(--bg3);
+  border:1px solid var(--linha);font-size:11px}
+.chip.f{background:#2a1113;border-color:var(--vermelho);color:#ff7b72;font-weight:700}
+.chip.c{background:#241d06;border-color:var(--amarelo);color:#e3b341;font-weight:700}
+
 @media (max-width:1080px){ .corpo{grid-template-columns:1fr} #mapa{height:52vh} }
 @media (max-width:640px){
   header{padding:.5rem .7rem} header .tit{font-size:15px} #relogio{font-size:21px}
@@ -124,6 +177,10 @@ footer a{color:var(--azul)}
     <div class="tit">CENTRAL <i>—</i> Pesquisa OD Rio Branco do Sul</div>
     <div class="sub" id="dia">—</div>
   </div>
+  <nav class="abas">
+    <button id="ab-visao" class="aba sel" type="button">Visão</button>
+    <button id="ab-dados" class="aba" type="button" title="Linhas coletadas hoje — pede o PIN do gestor">Dados</button>
+  </nav>
   <div class="espaco"></div>
   <div style="text-align:right">
     <div id="relogio">--:--:--</div>
@@ -134,6 +191,8 @@ footer a{color:var(--azul)}
 </header>
 
 <div class="wrap">
+
+<div id="pane-visao">
   <div id="alerta"></div>
 
   <section class="placar" id="placar"></section>
@@ -173,13 +232,54 @@ footer a{color:var(--azul)}
   </footer>
 </div>
 
+<div id="pane-dados" hidden>
+  <!-- portão: o token do gestor NUNCA vem da URL; é trocado pelo PIN e vive só nesta aba -->
+  <div class="gate" id="gate">
+    <h2>Linhas de hoje — acesso do gestor</h2>
+    <p>Esta aba mostra as entrevistas <b>linha a linha</b>.<br>Digite o <b>PIN do gestor</b> (G01).</p>
+    <div class="pinvis" id="pinvis">····</div>
+    <div class="teclado" id="teclado">
+      <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+      <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+      <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+      <button type="button" data-k="apagar">←</button><button type="button" data-k="0">0</button>
+      <button type="button" class="ok" data-k="ok">OK</button>
+    </div>
+    <div class="gate-msg" id="gate-msg"></div>
+  </div>
+
+  <div id="dados-conteudo" hidden>
+    <div class="barra-dados">
+      <button id="btn-dados" type="button">⟳ Atualizar</button>
+      <span class="qq" id="dados-idade">—</span>
+      <div class="espaco"></div>
+      <button id="btn-sair-dados" type="button" title="Esquecer o acesso do gestor nesta aba">🔒 Travar</button>
+    </div>
+    <div id="dados-erro"></div>
+    <h2>Conformidade com o questionário 1.0</h2>
+    <section class="conf" id="conf"></section>
+    <h2 id="tit-linhas">Linhas de hoje</h2>
+    <div class="rolo" id="rolo"><div class="vazio" style="padding:1rem">carregando…</div></div>
+    <footer>
+      <span class="rj">linhas cruas — uso interno Toposcan; não compartilhar este acesso.</span>
+      <span class="mut" id="dados-ver">—</span>
+    </footer>
+  </div>
+</div>
+
+</div>
+
 <script src="../vendor/leaflet.js"></script>
 <script type="module">
 /* API_URL vem do config.js; se o módulo falhar (build em troca), cai no literal —
    é a MESMA URL /exec pinada, pública, e a Central não pode ficar cega por isso. */
 const API_FALLBACK = 'https://script.google.com/macros/s/AKfycbz8jtDJSicgd2UoRHCyPBQ4Qe0PJZjzbC1yXAAcWukjNQw3iYSxZzPorgYVMeTLL947Gg/exec';
-let API_URL = API_FALLBACK;
-try { const m = await import('../config.js'); if (m.API_URL) API_URL = m.API_URL; } catch (e) {}
+let API_URL = API_FALLBACK, APP_VERSION = '';
+try {
+  const m = await import('../config.js');
+  if (m.API_URL) API_URL = m.API_URL;
+  if (m.APP_VERSION) APP_VERSION = m.APP_VERSION;   // referência do check "aparelho desatualizado"
+} catch (e) {}
 
 const $ = (id) => document.getElementById(id);
 const token = new URLSearchParams(location.search).get('token') || '';
@@ -444,6 +544,254 @@ setInterval(tique, 1000); tique();
 await iniciarMapa();
 await buscar();
 agendar();
+
+/* ═══ 8. Aba DADOS — linhas cruas do dia, para auditar o questionário ═══
+ * Privacidade e segurança desta aba, de propósito diferentes do resto da Central:
+ *  - o token do gestor NÃO vem da URL (a URL da Central circula por WhatsApp); é trocado
+ *    pelo PIN aqui dentro e guardado em sessionStorage — fechou a aba, esqueceu;
+ *  - a chamada é POST: token de gestor não entra em histórico, log de proxy nem link;
+ *  - o servidor devolve 25 das 68 colunas: sem coordenada, sem device, sem observação.
+ */
+const D = { token: sessionStorage.getItem('od_central_g01') || '', linhas: null, meta: null,
+            buscadoEm: 0, timer: null, pin: '', ocupado: false };
+
+async function apiPost(corpo) {
+  const r = await fetch(API_URL, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(corpo), cache: 'no-store',
+  });
+  return JSON.parse(await r.text());
+}
+
+/* ── rótulos: a tabela é para LER rápido, não para decifrar chave de banco */
+const R_MODAL = { a_pe: 'A pé', bicicleta: 'Bicicleta', onibus: '🚌 Ônibus', transporte_escolar: 'Tp. escolar',
+  moto: 'Moto', carro: 'Carro', carona: 'Carona', aplicativo: 'Aplicativo', caminhao: 'Caminhão' };
+const R_MOT = { casa: 'Casa', estudo: 'Estudo', trabalho: 'Trabalho', saude: 'Saúde', lazer: 'Lazer', outro: 'Outro' };
+const R_FX = { ate_17: '≤17', '18_24': '18–24', '25_34': '25–34', '35_44': '35–44', '45_59': '45–59',
+  '60_mais': '60+', nao_informado: 'N/I' };
+const R_ESC = { sem_instrucao: 'S/instr', fund_incompleto: 'Fund.inc', fund_completo: 'Fund.comp',
+  medio_incompleto: 'Méd.inc', medio_completo: 'Méd.comp', sup_incompleto: 'Sup.inc',
+  sup_completo: 'Sup.comp', pos_graduacao: 'Pós', nao_informado: 'N/I' };
+const rot = (m, v) => v === '' || v == null ? '' : (m[v] || String(v));
+const vazio = (v) => v === '' || v === null || v === undefined;
+const nn = (v) => { const x = Number(v); return isFinite(x) ? x : null; };
+
+/* melhor rótulo do lugar: logradouro > referência > bairro (V05 aceita nível 1..6) */
+function lugar(r, p) {
+  const lg = String(r[p + '_logradouro'] || '').trim();
+  const rf = String(r[p + '_referencia'] || '').trim();
+  const br = String(r[p + '_bairro'] || '').trim();
+  const nv = nn(r[p + '_nivel']);
+  /* nível 6 = "só município" (escala do schema): o município NÃO está no subset servido,
+     então um traço aqui pareceria dado faltando quando na verdade é o nível declarado. */
+  const alvo = lg || rf || br || (nv === 6 ? '(outro município)' : '');
+  const extra = (alvo && br && br !== alvo) ? br : '';
+  return `<span class="nv${nv > 3 ? ' alto' : ''}">n${nv ?? '?'}</span> ${esc(alvo || '—')}` +
+         (extra ? ` <span class="mut">· ${esc(extra)}</span>` : '');
+}
+
+/* ── bloco de conformidade: as regras do schema 1.0, contadas no cliente */
+const OBRIGATORIOS = [['modal', 'modal'], ['origem_motivo', 'motivo O'], ['destino_motivo', 'motivo D'],
+  ['tempo_viagem_min', 'tempo'], ['sexo', 'sexo'], ['faixa_etaria', 'faixa'], ['escolaridade', 'escolaridade']];
+const vcmp = (a, b) => {
+  const A = String(a).split('.').map(Number), B = String(b).split('.').map(Number);
+  for (let i = 0; i < 3; i++) { const d = (A[i] || 0) - (B[i] || 0); if (d) return d; }
+  return 0;
+};
+const card = (cls, rot_, val, pe, forte) =>
+  `<div class="ck ${cls}${forte ? ' forte' : ''}"><div class="rot">${rot_}</div>
+     <div class="val">${val}</div><div class="pe">${pe}</div></div>`;
+
+function conformidade(L, meta) {
+  const n = L.length;
+  if (!n) { $('conf').innerHTML = '<p class="vazio">nenhuma linha hoje ainda.</p>'; return; }
+
+  /* V03 — campos obrigatórios. O app BLOQUEIA o salvamento sem eles: qualquer vazio aqui
+     é linha que entrou por caminho que não devia existir. Zero é o único verde. */
+  const faltas = OBRIGATORIOS.map(([c, r]) => [r, L.filter((x) => vazio(x[c])).length]).filter((f) => f[1]);
+  const nFalt = faltas.reduce((a, f) => a + f[1], 0);
+
+  /* V03 exigidos_se — modal = ônibus obriga acesso_onibus. > 0 = BUG, não descuido. */
+  const bus = L.filter((x) => x.modal === 'onibus');
+  const busSem = bus.filter((x) => vazio(x.acesso_onibus)).length;
+
+  /* régua de 70% em nível <= 3 (Q15 é o espelho disto no servidor) */
+  const niv = (p) => {
+    const c = L.filter((x) => nn(x[p + '_nivel']) !== null);
+    const ok = c.filter((x) => nn(x[p + '_nivel']) <= 3).length;
+    return { n: c.length, ok, pc: c.length ? Math.round((ok / c.length) * 100) : null };
+  };
+  const oN = niv('origem'), dN = niv('destino');
+  const corNivel = (p) => p == null ? '' : p >= 70 ? 'v' : p >= 60 ? 'a' : 'r';
+
+  const curtas = L.filter((x) => nn(x.duracao_s) !== null && nn(x.duracao_s) < 45).length;  // V09
+  const longe = L.filter((x) => nn(x.distancia_ao_ponto_m) > 300).length;                    // Q04
+
+  const vs = {}; L.forEach((x) => { const v = String(x.app_version || '—'); vs[v] = (vs[v] || 0) + 1; });
+  const chaves = Object.keys(vs).sort(vcmp);
+  const alvo = APP_VERSION || chaves[chaves.length - 1] || '—';
+  const fora = n - (vs[alvo] || 0);
+  const listaV = chaves.filter((v) => v !== alvo).map((v) => `${v}: ${vs[v]}`).join(' · ') || 'todos na última';
+
+  const pc = (a) => Math.round((a / n) * 100);
+  $('conf').innerHTML = [
+    card('', 'Linhas de hoje', num(n),
+      `${num(meta?.recusas_hoje ?? 0)} recusa(s) hoje${meta?.truncado ? ' · <b class="al">lista cortada em ' + meta.teto + '</b>' : ''}`),
+    card(nFalt ? 'r' : 'v', 'Obrigatórios vazios', num(nFalt),
+      nFalt ? faltas.map((f) => `<b class="rj">${f[1]}</b> sem ${esc(f[0])}`).join(' · ')
+            : 'modal · motivo O/D · tempo · sexo · faixa · escolaridade', nFalt > 0),
+    card(busSem ? 'r' : 'v', 'Ônibus sem acesso', num(busSem),
+      busSem ? `<b class="rj">BUG</b> — ${busSem} de ${bus.length} com modal=ônibus sem a tela 7`
+             : `${bus.length} linha(s) de ônibus, todas com acesso preenchido`, busSem > 0),
+    card(corNivel(oN.pc), 'Origem nível ≤3', oN.pc == null ? '—' : oN.pc + '%',
+      `${oN.ok}/${oN.n} · régua 70%`),
+    card(corNivel(dN.pc), 'Destino nível ≤3', dN.pc == null ? '—' : dN.pc + '%',
+      `${dN.ok}/${dN.n} · régua 70%`),
+    card(curtas === 0 ? 'v' : pc(curtas) <= 5 ? 'a' : 'r', 'Duração < 45 s', num(curtas),
+      `${pc(curtas)}% das linhas · V09 pede confirmação`),
+    card(longe === 0 ? 'v' : pc(longe) <= 3 ? 'a' : 'r', '> 300 m do ponto', num(longe),
+      `${pc(longe)}% das linhas · Q04`),
+    card(fora ? 'a' : 'v', 'Fora da versão ' + esc(alvo), num(fora),
+      esc(listaV) + (fora ? ` · ${pc(fora)}% das linhas` : '')),
+  ].join('');
+}
+
+/* ── tabela */
+const CAB = ['Hora', 'Pesq.', 'Ponto', 'Modal', 'Origem', 'Motivo O→D', 'Destino', 'Tempo',
+             'Perfil', 'Tipo', 'Dur.', 'Dist.', 'GPS', 'Flags'];
+function tabelaLinhas(L) {
+  if (!L.length) { $('rolo').innerHTML = '<p class="vazio" style="padding:1rem">nenhuma linha hoje ainda.</p>'; return; }
+  const linhas = L.map((r) => {
+    const dur = nn(r.duracao_s), dist = nn(r.distancia_ao_ponto_m), acc = nn(r.abordagem_accuracy_m);
+    const busSem = r.modal === 'onibus' && vazio(r.acesso_onibus);
+    const falta = OBRIGATORIOS.some(([c]) => vazio(r[c]));
+    const flags = String(r.qc_flags || '').trim();
+    return `<tr class="${busSem || falta ? 'bug' : ''}">
+      <td class="hh">${esc(r.hora)}</td>
+      <td>${esc(r.pesquisador_id)}</td>
+      <td><span class="pid">${esc(r.ponto_id)}</span></td>
+      <td>${esc(rot(R_MODAL, r.modal)) || '<b class="rj">—</b>'}${
+        r.modal === 'onibus' ? (vazio(r.acesso_onibus)
+          ? ' <span class="chip f">sem acesso</span>'
+          : ` <span class="mut">→ ${esc(rot(R_MODAL, r.acesso_onibus))}</span>`) : ''}</td>
+      <td class="lug">${lugar(r, 'origem')}</td>
+      <td>${esc(rot(R_MOT, r.origem_motivo)) || '<b class="rj">—</b>'} <span class="mut">→</span> ${
+        esc(rot(R_MOT, r.destino_motivo)) || '<b class="rj">—</b>'}</td>
+      <td class="lug">${lugar(r, 'destino')}</td>
+      <td class="n">${vazio(r.tempo_viagem_min) ? '<b class="rj">—</b>' : num(nn(r.tempo_viagem_min)) + ' min'}</td>
+      <td class="mut">${esc(r.sexo || '—')} · ${esc(rot(R_FX, r.faixa_etaria) || '—')} · ${
+        esc(rot(R_ESC, r.escolaridade) || '—')}</td>
+      <td>${r.entrevistado_tipo === 'comerciante_local'
+        ? '<span class="chip c">comerciante</span>' : '<span class="mut">circ.</span>'}</td>
+      <td class="n${dur !== null && dur < 45 ? ' al' : ''}">${dur === null ? '—' : dur + ' s'}</td>
+      <td class="n${dist !== null && dist > 300 ? ' rj' : ''}">${dist === null ? '—' : Math.round(dist) + ' m'}</td>
+      <td class="n${acc === null ? '' : acc > 100 ? ' rj' : acc > 50 ? ' al' : ''}">${acc === null ? '—' : '±' + Math.round(acc)}</td>
+      <td>${flags ? `<span class="chip f">${esc(flags)}</span>` : '<span class="mut">—</span>'}</td>
+    </tr>`;
+  }).join('');
+  $('rolo').innerHTML = `<table class="linhas"><thead><tr>${
+    CAB.map((c) => `<th${['Tempo', 'Dur.', 'Dist.', 'GPS'].includes(c) ? ' class="n"' : ''}>${c}</th>`).join('')
+  }</tr></thead><tbody>${linhas}</tbody></table>`;
+}
+
+/* ── rede da aba */
+async function carregarLinhas() {
+  if (!D.token || D.ocupado) return;
+  D.ocupado = true;
+  try {
+    const j = await apiPost({ action: 'linhas_hoje', pesquisador_id: 'G01', token: D.token });
+    if (!j.ok) {
+      if (/token/i.test(j.erro || '')) { travarDados('O acesso do gestor expirou. Digite o PIN de novo.'); return; }
+      $('dados-erro').innerHTML = `<div class="erro">${esc(j.erro || 'a API recusou a consulta.')}</div>`;
+      return;
+    }
+    $('dados-erro').innerHTML = '';
+    D.linhas = j.linhas || []; D.meta = j; D.buscadoEm = Date.now();
+    conformidade(D.linhas, j);
+    tabelaLinhas(D.linhas);
+    $('tit-linhas').textContent = `Linhas de hoje — ${num(j.servidas)} de ${num(j.total)}, mais recente primeiro`;
+    $('dados-ver').textContent = `servidor: ${j.gerado_em || '—'} · schema ${j.schema_version || '—'} · dia ${j.data_hoje || '—'}`;
+  } catch (e) {
+    $('dados-erro').innerHTML = `<div class="erro">Falha ao consultar a API: ${esc(e.message)} — a tabela abaixo é a da última leitura.</div>`;
+  } finally { D.ocupado = false; tiqueDados(); }
+}
+
+function tiqueDados() {
+  const s = D.buscadoEm ? Math.round((Date.now() - D.buscadoEm) / 1000) : null;
+  $('dados-idade').textContent = s == null ? 'ainda não carregado'
+    : `lido há ${s < 90 ? s + 's' : Math.round(s / 60) + ' min'} · atualiza sozinho a cada 2 min`;
+}
+
+/* ── portão do PIN */
+function pintarPin() {
+  $('pinvis').innerHTML = [0, 1, 2, 3].map((i) => i < D.pin.length ? '<b>•</b>' : '·').join('');
+}
+function msgGate(t, ruim) { const e = $('gate-msg'); e.textContent = t || ''; e.className = 'gate-msg' + (ruim ? ' ruim' : ''); }
+
+async function tentarPin() {
+  if (D.pin.length !== 4) { msgGate('O PIN tem 4 dígitos.', true); return; }
+  msgGate('conferindo…');
+  try {
+    /* sem_heartbeat: destravar a Central não pode carimbar o ultimo_sync do G01 — a tela
+       passaria a jurar que ele está sincronizando com o celular dele parado no bolso. */
+    const j = await apiPost({ action: 'login_simples', pesquisador_id: 'G01', pin: D.pin, sem_heartbeat: true });
+    if (!j.ok || !j.token) { D.pin = ''; pintarPin(); msgGate(j.erro || 'PIN não confere. Tente de novo.', true); return; }
+    D.token = j.token; sessionStorage.setItem('od_central_g01', j.token);
+    D.pin = ''; pintarPin(); msgGate('');
+    abrirDados();
+  } catch (e) { msgGate('Sem resposta da API: ' + e.message, true); }
+}
+
+function travarDados(motivo) {
+  D.token = ''; D.linhas = null; D.buscadoEm = 0;
+  sessionStorage.removeItem('od_central_g01');
+  clearInterval(D.timer); D.timer = null;
+  $('gate').hidden = false; $('dados-conteudo').hidden = true;
+  D.pin = ''; pintarPin(); msgGate(motivo || '', !!motivo);
+}
+
+function abrirDados() {
+  clearInterval(D.timer);
+  if (!D.token) { $('gate').hidden = false; $('dados-conteudo').hidden = true; pintarPin(); return; }
+  $('gate').hidden = true; $('dados-conteudo').hidden = false;
+  tiqueDados();
+  if (!D.linhas || Date.now() - D.buscadoEm > 120000) carregarLinhas();
+  D.timer = setInterval(carregarLinhas, 120000);   // manual + 2 min: campo não precisa de mais
+}
+
+$('teclado').onclick = (ev) => {
+  const k = ev.target.dataset && ev.target.dataset.k; if (!k) return;
+  if (k === 'ok') return tentarPin();
+  if (k === 'apagar') D.pin = D.pin.slice(0, -1);
+  else if (D.pin.length < 4) D.pin += k;
+  pintarPin(); msgGate('');
+  if (D.pin.length === 4) tentarPin();
+};
+document.addEventListener('keydown', (ev) => {
+  if (abaAtual !== 'dados' || $('gate').hidden) return;
+  if (/^\d$/.test(ev.key)) { if (D.pin.length < 4) D.pin += ev.key; pintarPin(); msgGate(''); if (D.pin.length === 4) tentarPin(); }
+  else if (ev.key === 'Backspace') { D.pin = D.pin.slice(0, -1); pintarPin(); }
+  else if (ev.key === 'Enter') tentarPin();
+});
+$('btn-dados').onclick = carregarLinhas;
+$('btn-sair-dados').onclick = () => travarDados('Acesso travado. Digite o PIN para voltar.');
+
+/* ── navegação de abas */
+let abaAtual = 'visao';
+const PANES = { visao: ['ab-visao', 'pane-visao'], dados: ['ab-dados', 'pane-dados'] };
+function irPara(nome) {
+  abaAtual = nome;
+  for (const k in PANES) {
+    $(PANES[k][0]).classList.toggle('sel', k === nome);
+    $(PANES[k][1]).hidden = k !== nome;
+  }
+  if (nome === 'dados') abrirDados();
+  else { clearInterval(D.timer); D.timer = null; if (S.mapa) setTimeout(() => S.mapa.invalidateSize(), 40); }
+}
+$('ab-visao').onclick = () => irPara('visao');
+$('ab-dados').onclick = () => irPara('dados');
+pintarPin();
+setInterval(() => { if (abaAtual === 'dados' && D.token) tiqueDados(); }, 1000);
 
 /* A Central é uma tela AO VIVO: o Service Worker do app é cache-first para tudo que não é
    `fresco`, então esta página se auto-desaloja do cache para a próxima visita vir da rede. */
