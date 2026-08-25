@@ -14,7 +14,7 @@
  * aconteceu no 0.9.2 → 1.0: "app 0.9.2 · schema 1.0", e o V03 velho bloqueava todo
  * salvamento pedindo um campo `motivo` que o questionário novo não tem mais.
  * O test/fila_test.mjs falha se este número divergir do config.js. */
-const BUILD = '0.9.18';
+const BUILD = '0.9.19';
 const CACHE = `od-rbs-v${BUILD}`;
 
 const SHELL = [
@@ -28,6 +28,10 @@ const SHELL = [
 /* estes NUNCA são servidos do cache antes de tentar a rede */
 const FRESCOS = ['/data/pontos.json', '/data/schema.json', '/data/alias.json'];
 const ehFresco = (url) => FRESCOS.some((f) => url.pathname.endsWith(f));
+/* Dashboards (mapa3d/central/painel) também são network-first (25/08): são telas de quem
+ * está ONLINE olhando o agora — cache-first prendia o diretor numa versão velha até o
+ * próximo bump de BUILD (E143). O cache continua sendo gravado: vale como fallback offline. */
+const ehPainel = (url) => /\/(mapa3d|central|painel)(\/|$)/.test(url.pathname);
 
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
@@ -67,7 +71,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;        // nada de terceiros (sem tiles externas)
 
-  if (ehFresco(url)) {
+  if (ehFresco(url) || ehPainel(url)) {
     /* NETWORK-FIRST */
     e.respondWith((async () => {
       try {

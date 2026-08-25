@@ -162,6 +162,8 @@ button:hover,select:hover{border-color:var(--txt3)}
          exatamente o mapa de hoje. A distribuição é uma pergunta a mais, não outra tela. -->
     <span><label for="densidade" title="Levanta cada quarteirão na altura dos domicílios que o Censo 2022 contou nele. Só existe quadra na área urbana — a zona rural aparece vazia.">
       <input type="checkbox" id="densidade"> Distribuição da cidade</label></span>
+    <span><label for="entrev" title="Um pontinho por leitura, no lugar EXATO onde a entrevista aconteceu (GPS da abordagem). Vale nas duas vistas.">
+      <input type="checkbox" id="entrev"> Pontos de entrevista</label></span>
     <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
     <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
     <button id="btn-travar" type="button" title="Esquecer o acesso nesta aba">🔒</button>
@@ -260,7 +262,7 @@ const tetoEdicao = (k) => (k.length <= 5 ? 0 : k.length <= 8 ? 1 : 2);
 function casar(texto, indice, tag) {
   const k = reduzir(texto);
   if (!k) return null;
-  const ck = tag + ' ' + k;
+  const ck = tag + '\u0000' + k;
   if (S.cacheLugar.has(ck)) return S.cacheLugar.get(ck);
   let achado = indice.get(k) || null;
   if (!achado) {
@@ -346,6 +348,7 @@ const S = {
      primeira. Uma fita grossa não é 37 viagens visíveis: é 37 viagens escondidas. */
   agregar: false,
   densidade: false,         // quadras extrudadas na altura dos domicílios (M3) — default OFF
+  entrev: false,            // pontinho por leitura no GPS da abordagem — default OFF
   tFluxo: 0,                // relógio dos cometas do modo Rotas (uniform, não atributo)
   deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1, enquadrouCidades: false,
 };
@@ -540,8 +543,9 @@ function quedaFinal(r) {
   if (S.centroMun) return { pos: S.centroMun, tipo: 'centro', lugar: 'Rio Branco do Sul' };
   return null;
 }
-/* quão firme é a ponta: 0 exata · 1 sede de cidade · 2 centroide de bairro · 3 o ponto */
-const FIRMEZA = { exato: 0, municipio: 1, bairro: 2, ponto: 3, centro: 3 };
+/* quão firme é a ponta: 0 exata · 1 sede de cidade · 2 centroide de bairro / destino
+ * rebaixado no QC (proxy, ≤250 m) · 3 o ponto da entrevista */
+const FIRMEZA = { exato: 0, municipio: 1, bairro: 2, proxy: 2, ponto: 3, centro: 3 };
 
 /* identidade da leitura para o "novo desde o último poll": o servidor não serve o uuid
  * (é chave de banco), então a tupla hora+pesquisador+ponto+par de coordenadas faz as
@@ -562,10 +566,16 @@ function montarArcos(j) {
   const agora = Date.now();
   const arcos = [], externos = [], cidades = new Map();
   let precisos = 0, municipais = 0, aproximados = 0;
-  let porBairro = 0, porPonto = 0, foraDoMapa = 0;
+  let porBairro = 0, porPonto = 0, porProxy = 0, foraDoMapa = 0;
   const faltantes = new Map();
   for (const r of (j.linhas || [])) {
     let o = extremo(r, 'origem'), d = extremo(r, 'destino');
+    /* Destino REBAIXADO no QC (25/08): o "Vou aqui do lado" gravava o GPS do PESQUISADOR
+     * como destino — a pessoa ainda não está lá. O servidor agora carimba
+     * gps_proxy_entrevistador (±250 m, a promessa do botão é ≤ 2 quadras). A coordenada
+     * fica no mapa, mas a ponta deixa de posar de exata: vira tipo próprio, firmeza 2. */
+    if (String(r.destino_metodo || '') === 'gps_proxy_entrevistador' && d.tipo === 'exato')
+      d = { pos: d.pos, tipo: 'proxy' };
     /* município citado que não está no dicionário de âncoras nem casa com bairro nosso:
      * a leitura CONTINUA no mapa (queda final), mas o nome da cidade vai para o placar —
      * é o que diz ao dono qual linha acrescentar no dicionário da próxima vez. */
@@ -583,14 +593,18 @@ function montarArcos(j) {
     const grau = Math.max(FIRMEZA[o.tipo] ?? 3, FIRMEZA[d.tipo] ?? 3);
     if (grau === 0) precisos++; else if (inter) municipais++; else aproximados++;
     if (o.tipo === 'bairro' || d.tipo === 'bairro') porBairro++;
+    if (d.tipo === 'proxy') porProxy++;
     if (o.tipo === 'ponto' || d.tipo === 'ponto' || o.tipo === 'centro' || d.tipo === 'centro') porPonto++;
     if (o.tipo === 'municipio') cidades.set(o.cidade, o.pos);
     if (d.tipo === 'municipio') cidades.set(d.cidade, d.pos);
     const id = idLeitura(r);
     if (!S.vistos.has(id)) S.vistos.set(id, S.primeiraCarga ? 0 : agora);
+    const abLa = nn(r.abordagem_lat), abLo = nn(r.abordagem_lon);
     const a = {
       id, o: o.pos, d: d.pos, inter, grau,
       tipoO: o.tipo, tipoD: d.tipo,
+      proxy: d.tipo === 'proxy',
+      ab: abLa !== null && abLo !== null ? [abLo, abLa] : null,
       aprox: grau >= 2,
       cidade: (d.tipo === 'municipio' ? d.cidade : o.tipo === 'municipio' ? o.cidade : ''),
       /* ±18% em torno de 1 → altura ∝ distância. O intermunicipal sobe mais (×1.45):
@@ -610,7 +624,7 @@ function montarArcos(j) {
   S.resumo = {
     total: j.total, desenhados: arcos.length + externos.length,
     internos: arcos.length, inter: externos.length,
-    precisos, municipais, aproximados, porBairro, porPonto, foraDoMapa,
+    precisos, municipais, aproximados, porBairro, porPonto, porProxy, foraDoMapa,
     truncado: j.truncado, teto: j.teto,
     faltantes: [...faltantes].sort((a, b) => b[1] - a[1]),
   };
@@ -962,11 +976,11 @@ function montarRotas() {
   const legs = new Map(), paradas = new Map();
   const diretas = [], fios = [];
   const cacheCam = new Map();
-  let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0;
+  let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0, proxy = 0;
 
   const anel = (pos, campo) => {
     const s = snap(pos); if (!s) return;
-    const A = paradas.get(s.no) || { curtas: 0, semDestino: 0 };
+    const A = paradas.get(s.no) || { curtas: 0, semDestino: 0, proxy: 0 };
     A[campo]++; paradas.set(s.no, A);
   };
   const todas = [...S.arcos, ...S.externos];
@@ -1002,9 +1016,17 @@ function montarRotas() {
     const sa = snap(a.o), sb = snap(a.d);
     if (!sa || !sb || sa.d > SNAP_MAX_M || sb.d > SNAP_MAX_M) { reta(); continue; }
     if (sa.no === sb.no) {
-      /* origem e destino no MESMO nó: viagem curtíssima, ou destino não informado que
-         caiu no ponto da entrevista. Não some do mapa — vira um anel no lugar. */
-      anel(a.o, 'curtas'); curtas++; continue;
+      /* origem e destino no MESMO nó. Duas naturezas distintas, dois nomes no placar:
+       *   proxy  = o destino veio do botão "aqui do lado" e foi REBAIXADO no QC — é uma
+       *            viagem curta A PÉ real (≤ 2 quadras), com destino aproximado;
+       *   curtas = o resto (endereços declarados que caíram na mesma esquina) — raro, e
+       *            é este número que a régua do dono manda vigiar.
+       * Nenhuma some do mapa — viram anel no lugar. A leitura proxy com ORIGEM distante
+       * não passa por aqui: roteia normal, como as pontas de centroide de bairro. */
+      const campo = a.proxy ? 'proxy' : 'curtas';
+      anel(a.o, campo);
+      if (a.proxy) proxy++; else curtas++;
+      continue;
     }
     const cam = caminho(sa.no, sb.no, cacheCam);
     if (!cam) { reta(); continue; }
@@ -1043,7 +1065,7 @@ function montarRotas() {
     pos: [G.n[2 * no], G.n[2 * no + 1]], n: A.curtas + A.semDestino, ...A }));
   const T = eixoDoTempo(fios);
   S.rotas = { segs, pernas, diretas, aneis, fios, maxC, naMalha, foraMalha, curtas, semDestino,
-              loop: T.loop, trail: T.trail, ms: Math.round(performance.now() - t0) };
+              proxy, loop: T.loop, trail: T.trail, ms: Math.round(performance.now() - t0) };
 }
 
 /* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
@@ -1128,6 +1150,19 @@ function camadas() {
     getFillColor: [110, 130, 152, 90], getLineColor: [140, 165, 190, 175],
   }));
 
+  /* ── PONTOS DE ENTREVISTA (toggle): um pontinho por leitura, no GPS da ABORDAGEM.
+   * Não é a origem nem o destino: é onde o pesquisador estava ao abordar. Ciano cheio,
+   * menor que o ponto da escala (cinza) e sem competir com os anéis (amarelos). Vale
+   * nas duas vistas — vai antes dos arcos/fitas para ficar por baixo deles.          */
+  if (S.entrev) {
+    const ent = [...S.arcos, ...S.externos].filter((a) => a.ab);
+    if (ent.length) L.push(new deck.ScatterplotLayer({
+      id: 'entrevistas', data: ent, pickable: true, getPosition: (a) => a.ab,
+      radiusUnits: 'pixels', getRadius: 2.6, radiusMinPixels: 2,
+      filled: true, stroked: false, getFillColor: [61, 214, 245, 190],
+    }));
+  }
+
   if (rotas) montarCamadasRotas(L);
 
   if (!rotas) L.push(new deck.ArcLayer({
@@ -1147,6 +1182,22 @@ function camadas() {
     updateTriggers: { getSourceColor: [S.modo, S.anim], getTargetColor: [S.modo, S.anim],
                       getWidth: S.anim },
   }));
+
+  /* ── a viagem curta a pé (destino rebaixado no QC) tem arco de comprimento ~0:
+   * invisível — e invisível foi lido como "perdemos dados" (D1) e "isso não pode
+   * acontecer" (D2). O anel diz "a leitura está AQUI, inteira": mesmo desenho amarelo
+   * dos anéis do modo rotas. Só as de origem ≈ destino — a proxy de origem distante
+   * já tem arco visível. */
+  if (!rotas) {
+    const prox = S.arcos.filter((a) => a.proxy &&
+      Math.hypot((a.o[0] - a.d[0]) * M_LON, (a.o[1] - a.d[1]) * M_LAT) < 60);
+    if (prox.length) L.push(new deck.ScatterplotLayer({
+      id: 'arcos-proxy', data: prox, pickable: true, getPosition: (a) => a.d,
+      radiusUnits: 'pixels', getRadius: 5, radiusMinPixels: 4,
+      filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 1.6,
+      getLineColor: [255, 210, 63, 190],
+    }));
+  }
 
   /* ── Arcos INTERMUNICIPAIS, em camada e tom próprios.
    * A ponta de fora é a SEDE do município, não um endereço: precisão de ~1 km contra
@@ -1275,6 +1326,7 @@ function desenhar() { if (S.deck) S.deck.setProps({ layers: camadas() }); }
 /* ═══ 5. Motor deck.gl ══════════════════════════════════════════════════════════ */
 const RESSALVA = {
   bairro: '<i style="color:#d29922">ponta no centroide do bairro</i>',
+  proxy: '<i style="color:#d29922">destino aproximado (±250 m) — “aqui do lado” gravou o GPS do pesquisador; rebaixado no QC</i>',
   ponto: '<i style="color:#d29922">ponta no PONTO DA ENTREVISTA — o destino não foi informado</i>',
   centro: '<i style="color:#d29922">ponta no meio do município — sem lugar informado</i>',
 };
@@ -1287,6 +1339,11 @@ function tooltip({ object, layer }) {
     if (!object.a) return null;
     return tooltip({ object: object.a, layer: { id: 'arcos' } });
   }
+  /* o anel da curta a pé É uma leitura: mesmo balão do arco, com a ressalva do proxy */
+  if (layer.id === 'arcos-proxy') return tooltip({ object, layer: { id: 'arcos' } });
+  if (layer.id === 'entrevistas') return { html:
+    `<b style="color:#3dd6f5">entrevista às ${esc(object.hora)}</b><br>
+     <span style="color:#66768a">${esc(object.pesq)} · ${esc(object.ponto)} · GPS da abordagem</span>` };
   if (layer.id === 'quadras') { const r = object.r || 0; return { html:
     `<b style="color:rgb(${(r ? corDensidade(r) : [120, 134, 150]).slice(0, 3).join(',')})">${
        num(r)} domicílio${r === 1 ? '' : 's'}</b> <span style="color:#66768a">nesta quadra</span><br>
@@ -1305,7 +1362,8 @@ function tooltip({ object, layer }) {
      <span style="color:#66768a">o trecho fora do município é reto: não temos a malha de lá</span>` };
   if (layer.id === 'rotas-aneis') return { html:
     `<b style="color:#ffd23f">${num(object.n)} viagem${object.n > 1 ? 's' : ''} sem rota aqui</b><br>
-     <span style="color:#66768a">${object.curtas ? num(object.curtas) + ' com origem e destino na mesma esquina<br>' : ''}${
+     <span style="color:#66768a">${object.proxy ? num(object.proxy) + ' curta a pé (≤ 2 quadras) — destino aproximado, rebaixado no QC<br>' : ''}${
+       object.curtas ? num(object.curtas) + ' com origem e destino na mesma esquina<br>' : ''}${
        object.semDestino ? num(object.semDestino) + ' com o destino não informado — a ponta é o ponto da entrevista' : ''}</span>` };
   const c = corDe(object);
   const nv = (n) => n == null ? '' : `<span style="color:${n > 3 ? '#d29922' : '#66768a'}">n${n}</span> `;
@@ -1444,6 +1502,8 @@ function pintarLegendaRotas() {
   }
   if (R.foraMalha) linhas.push(
     `<div class="fita"><i style="width:22px;height:2px;background:rgba(150,168,188,.55)"></i> fora da malha — reta, sem fingir rua <b style="margin-left:auto;color:var(--txt)">${num(R.foraMalha)}</b></div>`);
+  if (R.proxy) linhas.push(
+    `<div class="fita"><i style="width:9px;height:9px;border:1.5px solid #ffd23f;background:none;border-radius:50%"></i> 🚶 curta a pé (≤ 2 quadras) — destino aproximado, QC <b style="margin-left:auto;color:var(--txt)">${num(R.proxy)}</b></div>`);
   if (R.curtas) linhas.push(
     `<div class="fita"><i style="width:9px;height:9px;border:1.5px solid #ffd23f;background:none;border-radius:50%"></i> origem = destino na mesma esquina <b style="margin-left:auto;color:var(--txt)">${num(R.curtas)}</b></div>`);
   if (R.semDestino) linhas.push(
@@ -1482,6 +1542,7 @@ function pintarContador() {
   const partes = [];
   if (z.municipais) partes.push(`municipais = ponta na <b>sede</b> da cidade vizinha (~1 km)`);
   if (z.porBairro) partes.push(`<b>${num(z.porBairro)}</b> com ponta no centroide do bairro`);
+  if (z.porProxy) partes.push(`<b>${num(z.porProxy)}</b> curtas a pé com <b>destino aproximado</b> (±250 m, rebaixadas no QC)`);
   if (z.porPonto) partes.push(`<b>${num(z.porPonto)}</b> com ponta no <b>ponto da entrevista</b> (destino não informado)`);
   if (z.faltantes.length) {
     const quais = z.faltantes.slice(0, 3).map(([c, n]) => `${esc(c)} (${n})`).join(', ');
@@ -1616,6 +1677,7 @@ $('agregar').onchange = (ev) => {
 /* Nada de re-rotear nem de re-buscar: a densidade só muda como as quadras são
    desenhadas. Um `desenhar()` e a legenda, e pronto. */
 $('densidade').onchange = (ev) => { S.densidade = ev.target.checked; desenhar(); pintarLegenda(); };
+$('entrev').onchange = (ev) => { S.entrev = ev.target.checked; desenhar(); };
 $('btn-agora').onclick = buscar;
 $('btn-travar').onclick = () => travar('Acesso travado. Digite o PIN para voltar.');
 $('btn-vista').onclick = () => { S.vista = enquadrar(); S.deck.setProps({ initialViewState: { ...S.vista, transitionDuration: 700 } }); };
