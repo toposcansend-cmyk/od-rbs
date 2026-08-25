@@ -137,7 +137,13 @@ function toast(msg, tipo = '') {
   const t = el('toast'); t.textContent = msg; t.className = tipo; t.hidden = false;
   clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), tipo === 'erro' ? 5200 : 2600);
 }
-function modal({ titulo, corpo, acoes }) {
+/* modal() — extensão RETROCOMPATÍVEL (0.9.15). Ação sem `valor` nem `trava` se comporta
+ * exatamente como antes: resolve com o id, string pura. Os campos novos servem ao modal
+ * com input de texto:
+ *   ac.trava()  -> true segura o modal aberto (ex.: campo vazio)
+ *   ac.valor()  -> lido do DOM ANTES de fechar; a ação resolve com {id, valor}
+ *   aoAbrir()   -> roda com o modal já visível (focar o input)                        */
+function modal({ titulo, corpo, acoes, aoAbrir }) {
   return new Promise((res) => {
     el('modal-t').textContent = titulo;
     el('modal-c').innerHTML = corpo || '';
@@ -145,10 +151,16 @@ function modal({ titulo, corpo, acoes }) {
     acoes.forEach((ac) => {
       const b = document.createElement('button');
       b.textContent = ac.rotulo; b.className = ac.estilo || 'b-fantasma';
-      b.onclick = () => { el('modal').hidden = true; res(ac.id); };
+      b.onclick = () => {
+        if (ac.trava && ac.trava()) return;               // fica aberto de propósito
+        const v = ac.valor ? ac.valor() : undefined;      // ler antes de fechar
+        el('modal').hidden = true;
+        res(ac.valor ? { id: ac.id, valor: v } : ac.id);
+      };
       a.appendChild(b);
     });
     el('modal').hidden = false;
+    if (aoAbrir) aoAbrir();
   });
 }
 
@@ -632,8 +644,13 @@ function novaEntrevista() {
   };
   /* padrões vindos do schema (v1.0: entrevistado_tipo = circulando já pré-selecionado —
      a exceção é o comerciante, e um toque a mais em 350 entrevistas custa caro) */
-  for (const t of S.schema.telas)
+  for (const t of S.schema.telas) {
     for (const g of (t.grupos || [])) if (g.padrao !== undefined) S.r[g.campo] = g.padrao;
+    /* campos de `texto_extra` nascem vazios: o ensureColumns do servidor cria coluna a
+       partir das CHAVES do payload, então a coluna existe já no 1º envio do dia mesmo
+       que ninguém tenha respondido "Outro" ainda (schema 1.1). */
+    for (const o of (t.opcoes || [])) if (o.texto_extra) S.r[o.texto_extra.campo] = '';
+  }
   S.tela = 0; irPara('entrevista');
 }
 
@@ -782,11 +799,20 @@ function resumoLocal(p) {
   return [r[p + '_logradouro'], r[p + '_numero'], r[p + '_referencia'], r[p + '_bairro'], r[p + '_municipio']]
     .filter(Boolean).join(', ') || '—';
 }
-function gravarLocal(p, dados) {
+/* gravarLocal(p, dados, seguir)
+ * `seguir` = este caminho FECHA a tela: avança sozinho, como os chips (0.9.15).
+ * Motivo (bug de campo D1, dois celulares travados): registrar rua+número re-renderizava
+ * a cascata com o aviso "Registrado" e o botão Seguir ABAIXO DA DOBRA — para o
+ * entrevistador, "deu OK e voltou pra origem". Nenhum registro pode depender de um botão
+ * que talvez não esteja na tela. O estado "Registrado" continua existindo: reaparece no
+ * Voltar, para reconferência — só deixou de ser parada obrigatória.
+ * `seguir` falso mantém o comportamento antigo (re-render) para quem NÃO fecha a tela.
+ * `dados.zona` explícito vence o zonaDe() automático (caso do outro município). */
+function gravarLocal(p, dados, seguir) {
   Object.entries(dados).forEach(([k, v]) => (S.r[p + '_' + k] = v));
   if (!S.r[p + '_municipio']) S.r[p + '_municipio'] = 'Rio Branco do Sul';
-  S.r[p + '_zona'] = zonaDe(p);
-  render();
+  if (dados.zona === undefined) S.r[p + '_zona'] = zonaDe(p);
+  if (seguir) proximaTela(); else render();      // proximaTela já re-renderiza e sobe a tela
 }
 function zonaDe(p) {
   const b = normalizar(S.r[p + '_bairro'] || '');
@@ -805,8 +831,8 @@ function abrirModoCascata(b, p) {
     if (!S.fix) { toast('Sem fix de GPS agora — use outra opção.', 'erro'); return; }
     gravarLocal(p, { nivel: 1, metodo: 'gps_entrevistado', precisao_m: Math.max(10, Math.round(S.fix.acc)),
                      lat: +S.fix.lat.toFixed(6), lon: +S.fix.lon.toFixed(6),
-                     bairro: S.ponto.bairro, municipio: 'Rio Branco do Sul' });
-    toast('Coordenada atual registrada (nível 1).', 'ok');
+                     bairro: S.ponto.bairro, municipio: 'Rio Branco do Sul' }, true);
+    toast('Coordenada atual registrada (nível 1).', 'ok');   // o toast flutua: sobrevive à troca de tela
     return;
   }
 
@@ -841,7 +867,7 @@ function abrirModoCascata(b, p) {
             .forEach((v) => sug.appendChild(itemSug(v.nome, v.tipo, () => {
               gravarLocal(p, { nivel: casc.so_bairro_nivel, metodo: 'texto_livre',
                 precisao_m: casc.so_bairro_precisao_m, bairro: v.nome, logradouro: '', numero: '',
-                lat: v.lat, lon: v.lon, municipio: 'Rio Branco do Sul' });
+                lat: v.lat, lon: v.lon, municipio: 'Rio Branco do Sul' }, true);
             })));
         }
       }, casc.autocomplete.debounce_ms);
@@ -858,7 +884,7 @@ function abrirModoCascata(b, p) {
       sug.innerHTML = '';
       lista.slice(0, 10).forEach((x) => sug.appendChild(itemSug(x.nome, x.bairro, () =>
         gravarLocal(p, { nivel: 4, metodo: 'poi', precisao_m: 120, referencia: x.nome,
-          bairro: x.bairro, lat: x.lat, lon: x.lon, municipio: 'Rio Branco do Sul' }))));
+          bairro: x.bairro, lat: x.lat, lon: x.lon, municipio: 'Rio Branco do Sul' }, true))));
     };
     pinta(ordenarPontosPorDistancia(S.pois, S.fix));
     let deb;
@@ -899,9 +925,10 @@ function abrirModoCascata(b, p) {
     el('om-ok').onclick = () => {
       if (!mun) { toast('Escolha o município.', 'erro'); return; }
       const bairro = el('ob').value.trim();
+      /* zona explícita no próprio `dados`: o zonaDe() automático devolveria '' sem bairro,
+         e depois do avanço não há mais onde corrigir. */
       gravarLocal(p, { nivel: bairro ? 5 : 6, metodo: 'texto_livre', precisao_m: bairro ? 800 : 5000,
-        municipio: mun, bairro, logradouro: '', numero: '', lat: '', lon: '' });
-      S.r[p + '_zona'] = 'ZE01';
+        municipio: mun, bairro, logradouro: '', numero: '', lat: '', lon: '', zona: 'ZE01' }, true);
     };
     return;
   }
@@ -938,7 +965,7 @@ function pedirNumero(p, via) {
       precisao_m: comN ? casc.com_numero_precisao_m : 150,
       logradouro: via.n, numero: n, bairro: el('bai').value.trim(),
       lat: via.lat, lon: via.lon, municipio: 'Rio Branco do Sul',
-    });
+    }, true);
   };
   el('num').focus();
 }
@@ -970,8 +997,10 @@ function montarMapa(p) {
     const fora = S.limiteRing && foraDoMunicipio(ll.lat, ll.lng, S.limiteRing);
     gravarLocal(p, { nivel: 1, metodo: 'pin_mapa', precisao_m: 10,
       lat: +ll.lat.toFixed(6), lon: +ll.lng.toFixed(6),
-      municipio: fora ? '' : 'Rio Branco do Sul', bairro: '' });
-    toast(fora ? 'Pino fora do limite municipal — confira.' : 'Pino registrado (nível 1).', fora ? 'erro' : 'ok');
+      municipio: fora ? '' : 'Rio Branco do Sul', bairro: '' }, true);
+    /* pino fora do limite pode ser legítimo (viagem para outra cidade): avisa e segue —
+       o toast de erro fica 5 s na tela e o Voltar corrige. Não trava a entrevista. */
+    toast(fora ? 'Pino fora do limite municipal — confira no Voltar.' : 'Pino registrado (nível 1).', fora ? 'erro' : 'ok');
   };
   setTimeout(() => S.mapa.invalidateSize(), 120);
 }
@@ -991,7 +1020,11 @@ function telaChips(box, t) {
     const b = document.createElement('button');
     b.className = 'chip'; b.setAttribute('aria-pressed', String(val === o.v));
     b.innerHTML = (o.i ? `<span class="ic">${o.i}</span>` : '') + `<span>${esc(o.r)}</span>`;
-    b.onclick = () => { S.r[t.campo] = o.v; proximaTela(); };   // avanço automático
+    /* Chip com `texto_extra` (schema 1.1) NÃO avança direto: pergunta o complemento antes.
+       Todo o resto continua com avanço automático de 1 toque, sem mudança nenhuma. */
+    b.onclick = o.texto_extra
+      ? () => perguntarTextoExtra(t, o)
+      : () => { S.r[t.campo] = o.v; limparTextosExtras(t, o); proximaTela(); };
     c.appendChild(b);
   });
   if (t.permite_outro) el('outro-ok').onclick = () => {
@@ -1000,6 +1033,60 @@ function telaChips(box, t) {
     S.r[t.campo] = v; proximaTela();
   };
   ligarVoltar();
+}
+
+/* Trocou de categoria: o complemento da OUTRA categoria não pode ficar pendurado
+ * (ex.: escolheu "Outro/creche", voltou e escolheu "Casa" — o texto tem de sumir). */
+function limparTextosExtras(t, escolhida) {
+  for (const o of t.opcoes || [])
+    if (o.texto_extra && o !== escolhida) S.r[o.texto_extra.campo] = '';
+}
+
+/* Complemento em TEXTO de um chip categórico (schema 1.1, pedido do dono em campo, D1).
+ * Regra travada do projeto: a CATEGORIA continua sendo gravada no campo de sempre — a
+ * matriz OD depende dela. O texto é COMPLEMENTO, em coluna própria (`texto_extra.campo`),
+ * e NUNCA substitui a categoria. Genérico: vale para qualquer opção de qualquer tela de
+ * chips que traga `texto_extra` no schema.
+ * "Prefere não dizer" existe para não travar a entrevista — grava vazio e segue. */
+async function perguntarTextoExtra(t, o) {
+  const tx = o.texto_extra, max = tx.max || 120;
+  const leia = () => (el('txe')?.value || '').trim().slice(0, max);
+  const q = await modal({
+    titulo: tx.pergunta || 'Qual?',
+    corpo: `<p class="dica">Categoria <b>${esc(o.r)}</b> — anote com as palavras da pessoa.</p>
+      <input id="txe" type="text" autocapitalize="sentences" autocomplete="off"
+        autocorrect="off" spellcheck="false" enterkeyhint="done" maxlength="${max}"
+        style="font-size:20px;min-height:56px"
+        placeholder="${esc(tx.placeholder || 'ex.: levar filho na creche')}"
+        value="${esc(S.r[tx.campo] || '')}">`,
+    acoes: [
+      { id: 'voltar', rotulo: '‹ Voltar' },
+      { id: 'nao_diz', rotulo: 'Prefere não dizer' },
+      {
+        id: 'confirmar', rotulo: '✓ Confirmar', estilo: 'b-primario',
+        valor: leia,
+        trava: () => {                       // vazio: balança, avisa e FICA aberto
+          if (leia()) return false;
+          const i = el('txe');
+          if (i) {
+            if (i.animate) i.animate(
+              [{ transform: 'translateX(0)' }, { transform: 'translateX(-9px)' },
+               { transform: 'translateX(9px)' }, { transform: 'translateX(0)' }],
+              { duration: 240, iterations: 2 });
+            i.focus();
+          }
+          toast('Escreva o motivo — ou toque em "Prefere não dizer".', 'erro');
+          return true;
+        },
+      },
+    ],
+    aoAbrir: () => { const i = el('txe'); if (i) { i.focus(); i.select(); } },
+  });
+  if (q === 'voltar') return;                 // não grava nada, fica na mesma tela
+  S.r[t.campo] = o.v;                         // a CATEGORIA, sempre
+  limparTextosExtras(t, o);
+  S.r[tx.campo] = q === 'nao_diz' ? '' : (q.valor || '');
+  proximaTela();
 }
 
 /* ---- tela 7: trecho antes/depois (só transbordo) */
@@ -1062,6 +1149,13 @@ function telaResumo(box, t) {
     }
     return v;
   };
+  /* Categoria + complemento em texto, quando houver: Outro (“levar filho na creche”).
+     É o que deixa o pesquisador CONFERIR o que digitou antes de finalizar. */
+  const motivo = (campo) => {
+    const base = esc(rot(campo, r[campo]));
+    const tx = String(r[campo + '_outro'] || '').trim();
+    return tx ? `${base} <small>(“${esc(tx)}”)</small>` : base;
+  };
   box.innerHTML = `
     <h2 class="pergunta">${esc(t.titulo)}</h2>
     <div class="resumo"><dl>
@@ -1070,7 +1164,7 @@ function telaResumo(box, t) {
       <dt>Destino</dt><dd>${esc(resumoLocal('destino'))} <small>(nível ${esc(r.destino_nivel || '—')})</small></dd>
       <dt>Modo</dt><dd>${esc(rot('modal', r.modal))}${r.acesso_onibus
         ? ` <small>(acesso: ${esc(rot('acesso_onibus', r.acesso_onibus))})</small>` : ''}</dd>
-      <dt>Motivo</dt><dd>${esc(rot('origem_motivo', r.origem_motivo))} → ${esc(rot('destino_motivo', r.destino_motivo))}</dd>
+      <dt>Motivo</dt><dd>${motivo('origem_motivo')} → ${motivo('destino_motivo')}</dd>
       <dt>Tempo</dt><dd>${esc(r.tempo_viagem_min ?? '—')} min</dd>
       <dt>Perfil</dt><dd>${esc(rot('sexo', r.sexo))} · ${esc(rot('faixa_etaria', r.faixa_etaria))} · ${esc(rot('escolaridade', r.escolaridade))}${
         r.entrevistado_tipo === 'comerciante_local' ? ' · <b>comerciante local</b>' : ''}</dd>

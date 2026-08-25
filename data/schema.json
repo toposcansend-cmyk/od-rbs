@@ -1,8 +1,8 @@
 {
- "schema_version": "1.0",
+ "schema_version": "1.1",
  "titulo": "Pesquisa Origem-Destino — Rio Branco do Sul",
  "subtitulo": "Plano de Mobilidade Urbana",
- "atualizado_em": "2026-08-24",
+ "atualizado_em": "2026-08-25",
  "regras_ui": {
   "fonte_base_px": 18,
   "alvo_min_px": 48,
@@ -72,7 +72,13 @@
     { "v": "trabalho", "r": "Trabalho", "i": "💼" },
     { "v": "saude", "r": "Saúde", "i": "🏥" },
     { "v": "lazer", "r": "Lazer", "i": "⚽" },
-    { "v": "outro", "r": "Outro", "i": "❓" }
+    { "v": "outro", "r": "Outro", "i": "❓",
+      "texto_extra": {
+       "campo": "origem_motivo_outro",
+       "pergunta": "Qual o motivo?",
+       "placeholder": "ex.: levar filho na creche",
+       "max": 120
+      } }
    ]
   },
   {
@@ -102,7 +108,13 @@
     { "v": "trabalho", "r": "Trabalho", "i": "💼" },
     { "v": "saude", "r": "Saúde", "i": "🏥" },
     { "v": "lazer", "r": "Lazer", "i": "⚽" },
-    { "v": "outro", "r": "Outro", "i": "❓" }
+    { "v": "outro", "r": "Outro", "i": "❓",
+      "texto_extra": {
+       "campo": "destino_motivo_outro",
+       "pergunta": "Qual o motivo?",
+       "placeholder": "ex.: levar filho na creche",
+       "max": 120
+      } }
    ]
   },
   {
@@ -333,7 +345,8 @@
   "sexo", "faixa_etaria", "idade", "escolaridade", "consentimento_responsavel",
   "consentimento_verbal", "recusa_localizacao", "obs_pesquisador",
   "qc_flags", "qc_status", "revisado_por", "revisado_em",
-  "acesso_onibus", "origem_motivo", "destino_motivo", "entrevistado_tipo"
+  "acesso_onibus", "origem_motivo", "destino_motivo", "entrevistado_tipo",
+  "origem_motivo_outro", "destino_motivo_outro"
  ],
  "colunas_recusas": ["uuid", "ts", "pesquisador_id", "ponto_id", "motivo", "sexo_aprox", "faixa_aprox", "ts_sync", "app_version"],
  "rodape": {
