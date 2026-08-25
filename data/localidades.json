@@ -159,6 +159,125 @@
    "lon": -49.48135
   },
   {
+   "nome": "Acungui do Meio",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.108321,
+   "lon": -49.451018
+  },
+  {
+   "nome": "Acunqui",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.981442,
+   "lon": -49.51125
+  },
+  {
+   "nome": "Agua Branca",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.938736,
+   "lon": -49.468322
+  },
+  {
+   "nome": "Alto Acungui",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.015129,
+   "lon": -49.461905
+  },
+  {
+   "nome": "Areia do Rosario",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.990313,
+   "lon": -49.40814
+  },
+  {
+   "nome": "Areia do Rosorio",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.980542,
+   "lon": -49.413936
+  },
+  {
+   "nome": "Areias da Piedade",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.912324,
+   "lon": -49.412825
+  },
+  {
+   "nome": "Areias do Rosario",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.965983,
+   "lon": -49.424474
+  },
+  {
+   "nome": "Bairro Alto",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.221626,
+   "lon": -49.298555
+  },
+  {
+   "nome": "Banhadal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.027547,
+   "lon": -49.481243
+  },
+  {
+   "nome": "Barra da Santana",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.138012,
+   "lon": -49.282049
+  },
+  {
+   "nome": "Barra do Florestal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.02418,
+   "lon": -49.499336
+  },
+  {
+   "nome": "Barrinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.927763,
+   "lon": -49.43679
+  },
+  {
+   "nome": "Boqueirao da Serra",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.093918,
+   "lon": -49.168864
+  },
+  {
+   "nome": "Borges 2",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.040707,
+   "lon": -49.446373
+  },
+  {
+   "nome": "Brascal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.211033,
+   "lon": -49.308607
+  },
+  {
+   "nome": "Bromadinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.181813,
+   "lon": -49.377341
+  },
+  {
    "nome": "Bromado",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
@@ -166,11 +285,109 @@
    "lon": -49.37444
   },
   {
+   "nome": "Caete",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.068385,
+   "lon": -49.311333
+  },
+  {
+   "nome": "Campina",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.219036,
+   "lon": -49.245077
+  },
+  {
    "nome": "Campina dos Pintos",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
    "lat": -25.21897,
    "lon": -49.24652
+  },
+  {
+   "nome": "Campinas dos Pintos",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.219091,
+   "lon": -49.241934
+  },
+  {
+   "nome": "Canta Galo",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.020918,
+   "lon": -49.37108
+  },
+  {
+   "nome": "Capinzal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.192573,
+   "lon": -49.345821
+  },
+  {
+   "nome": "Capiru",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.172689,
+   "lon": -49.274876
+  },
+  {
+   "nome": "Capiru dos Denis",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.17492,
+   "lon": -49.267632
+  },
+  {
+   "nome": "Capiru dos Dias",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.193869,
+   "lon": -49.279508
+  },
+  {
+   "nome": "Capiruzinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.192787,
+   "lon": -49.278927
+  },
+  {
+   "nome": "Centro Alto",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.190633,
+   "lon": -49.31602
+  },
+  {
+   "nome": "Coloninha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.148136,
+   "lon": -49.39317
+  },
+  {
+   "nome": "Cordeiros",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.138534,
+   "lon": -49.371659
+  },
+  {
+   "nome": "Corriola dos Franca",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.018167,
+   "lon": -49.471743
+  },
+  {
+   "nome": "Corriolinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.986084,
+   "lon": -49.460797
   },
   {
    "nome": "Curriola Francas",
@@ -187,11 +404,158 @@
    "lon": -49.42215
   },
   {
+   "nome": "Divisa de Madre com Vila Sao Pedro",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.168924,
+   "lon": -49.31283
+  },
+  {
+   "nome": "Dos Cordeiros",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.158629,
+   "lon": -49.348859
+  },
+  {
+   "nome": "Encantilado",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.008151,
+   "lon": -49.487947
+  },
+  {
+   "nome": "Florestal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.043868,
+   "lon": -49.497727
+  },
+  {
+   "nome": "Gruta da Toca",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.179787,
+   "lon": -49.303389
+  },
+  {
+   "nome": "Itaretama",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.096739,
+   "lon": -49.397104
+  },
+  {
+   "nome": "Itopava",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.017696,
+   "lon": -49.433833
+  },
+  {
+   "nome": "Itupava",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.122754,
+   "lon": -49.319605
+  },
+  {
    "nome": "Jacaré",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
    "lat": -24.92995,
    "lon": -49.48804
+  },
+  {
+   "nome": "Jacare da Ribeira",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.93412,
+   "lon": -49.511636
+  },
+  {
+   "nome": "Jardim Albarana",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.184749,
+   "lon": -49.302041
+  },
+  {
+   "nome": "Jardim Paraiso",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.179212,
+   "lon": -49.3189
+  },
+  {
+   "nome": "Jardim Record",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.195441,
+   "lon": -49.300682
+  },
+  {
+   "nome": "Jardim Sao Luis",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.191162,
+   "lon": -49.321662
+  },
+  {
+   "nome": "Jardim Sao Luiz",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.189315,
+   "lon": -49.322628
+  },
+  {
+   "nome": "Johnsson",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.189264,
+   "lon": -49.3194
+  },
+  {
+   "nome": "Lageado",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.974916,
+   "lon": -49.452742
+  },
+  {
+   "nome": "Lanca",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.147247,
+   "lon": -49.281593
+  },
+  {
+   "nome": "Lancinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.16434,
+   "lon": -49.286341
+  },
+  {
+   "nome": "Lavra",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.188847,
+   "lon": -49.217725
+  },
+  {
+   "nome": "Limeira",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.010186,
+   "lon": -49.451914
+  },
+  {
+   "nome": "Limoeiro",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.084707,
+   "lon": -49.253591
   },
   {
    "nome": "Mina de Ferro",
@@ -201,11 +565,67 @@
    "lon": -49.28743
   },
   {
+   "nome": "Morro Grande",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.035403,
+   "lon": -49.492254
+  },
+  {
+   "nome": "Morrogrande",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.019105,
+   "lon": -49.396098
+  },
+  {
+   "nome": "Natanea",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.184856,
+   "lon": -49.31548
+  },
+  {
+   "nome": "Nodari",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.19458,
+   "lon": -49.298855
+  },
+  {
+   "nome": "Nossa Senhora de Fatima",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.176039,
+   "lon": -49.314841
+  },
+  {
+   "nome": "Olaria",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.110564,
+   "lon": -49.415078
+  },
+  {
    "nome": "Oristela",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
    "lat": -25.17692,
    "lon": -49.28589
+  },
+  {
+   "nome": "Paiol de Baixo",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.207171,
+   "lon": -49.301018
+  },
+  {
+   "nome": "Palmitalzinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.986725,
+   "lon": -49.446502
   },
   {
    "nome": "Pernambuco",
@@ -215,11 +635,95 @@
    "lon": -49.2642
   },
   {
+   "nome": "Piedade",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.053623,
+   "lon": -49.297515
+  },
+  {
+   "nome": "Pinhal",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.1888,
+   "lon": -49.194647
+  },
+  {
    "nome": "Pinta",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
    "lat": -25.01673,
    "lon": -49.34621
+  },
+  {
+   "nome": "Pl Sta Terezinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.188311,
+   "lon": -49.322483
+  },
+  {
+   "nome": "Pocinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.220161,
+   "lon": -49.262939
+  },
+  {
+   "nome": "Poco Bonito",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.996376,
+   "lon": -49.448316
+  },
+  {
+   "nome": "Poco Dante",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.055313,
+   "lon": -49.328575
+  },
+  {
+   "nome": "Quebra Funda",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.016008,
+   "lon": -49.357478
+  },
+  {
+   "nome": "Queimadas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.137875,
+   "lon": -49.259204
+  },
+  {
+   "nome": "Queimadinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.096254,
+   "lon": -49.094886
+  },
+  {
+   "nome": "Rancharia",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.187519,
+   "lon": -49.297663
+  },
+  {
+   "nome": "Regiao Borges",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.181368,
+   "lon": -49.364987
+  },
+  {
+   "nome": "Regiao das Palmeirinhas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.169761,
+   "lon": -49.373013
   },
   {
    "nome": "Ribeira",
@@ -229,6 +733,41 @@
    "lon": -49.44326
   },
   {
+   "nome": "Ribeira dos Costas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.958162,
+   "lon": -49.501233
+  },
+  {
+   "nome": "Ribeirinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.910938,
+   "lon": -49.431814
+  },
+  {
+   "nome": "Rio Abaixo",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.171593,
+   "lon": -49.357677
+  },
+  {
+   "nome": "Rio Acungui",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.932435,
+   "lon": -49.478655
+  },
+  {
+   "nome": "Santa Clara",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.183115,
+   "lon": -49.277379
+  },
+  {
    "nome": "Santa Cruz",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
@@ -236,11 +775,151 @@
    "lon": -49.39911
   },
   {
+   "nome": "Santa Terezinha",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.187275,
+   "lon": -49.303628
+  },
+  {
    "nome": "Santana",
    "tipo": "localidade",
    "municipio": "Rio Branco do Sul",
    "lat": -25.11891,
    "lon": -49.20782
+  },
+  {
+   "nome": "Santana do Bom Jardim",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.13997,
+   "lon": -49.166568
+  },
+  {
+   "nome": "Santana dos Benato",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.116188,
+   "lon": -49.099765
+  },
+  {
+   "nome": "Santaria 2",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.215446,
+   "lon": -49.302603
+  },
+  {
+   "nome": "Santo Antonio",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.189274,
+   "lon": -49.300914
+  },
+  {
+   "nome": "Sao Gabriel",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.20192,
+   "lon": -49.306643
+  },
+  {
+   "nome": "Sao Vicente",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.032921,
+   "lon": -49.424022
+  },
+  {
+   "nome": "Tacanica",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.164036,
+   "lon": -49.362125
+  },
+  {
+   "nome": "Tacanica dos Costas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.146782,
+   "lon": -49.445569
+  },
+  {
+   "nome": "Tacanica dos Nazario",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.157901,
+   "lon": -49.386263
+  },
+  {
+   "nome": "Teotonio",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.206596,
+   "lon": -49.268806
+  },
+  {
+   "nome": "Tigrinho",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.971843,
+   "lon": -49.485446
+  },
+  {
+   "nome": "Toquinhas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.168193,
+   "lon": -49.304557
+  },
+  {
+   "nome": "Tres Barra",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -24.921807,
+   "lon": -49.458321
+  },
+  {
+   "nome": "Vila Artigas",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.202646,
+   "lon": -49.302387
+  },
+  {
+   "nome": "Vila Nodari I",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.195245,
+   "lon": -49.308201
+  },
+  {
+   "nome": "Vila Sao Pedro",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.169403,
+   "lon": -49.311344
+  },
+  {
+   "nome": "Vuturuvu",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.109443,
+   "lon": -49.452171
+  },
+  {
+   "nome": "Vuturuvu dos Bentos",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.123972,
+   "lon": -49.426337
+  },
+  {
+   "nome": "Vuturuvu dos Espanhois",
+   "tipo": "localidade",
+   "municipio": "Rio Branco do Sul",
+   "lat": -25.106684,
+   "lon": -49.447583
   }
  ],
  "municipios_vizinhos": [
