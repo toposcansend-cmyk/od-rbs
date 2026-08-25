@@ -346,6 +346,7 @@ const S = {
      primeira. Uma fita grossa não é 37 viagens visíveis: é 37 viagens escondidas. */
   agregar: false,
   densidade: false,         // quadras extrudadas na altura dos domicílios (M3) — default OFF
+  tFluxo: 0,                // relógio dos cometas do modo Rotas (uniform, não atributo)
   deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1, enquadrouCidades: false,
 };
 const FLASH_MS = 2000;
@@ -895,6 +896,58 @@ function passaFiltro(a) {
   return true;
 }
 
+/* ═══ 3c. O EIXO DO TEMPO DOS COMETAS ══════════════════════════════════════════
+ * A partícula que corre sobre cada fio não é enfeite: a velocidade dela É o tempo de
+ * deslocamento do modo. Quem foi a pé arrasta pela tela; quem foi de carro cruza. Ver
+ * isso lado a lado, no mesmo trecho de rua, é o argumento de mobilidade que a planilha
+ * não faz — e é por isso que a legenda tem de dizer a frase, senão a animação vira
+ * enfeite e ENFRAQUECE a entrega em vez de reforçá-la.
+ *
+ * Velocidades típicas de porta a porta (km/h), não de catálogo: o ônibus anda a 22 e
+ * não a 40 porque para; a bicicleta a 15 e não a 25 porque sobe ladeira.
+ *
+ * Três decisões que não são gosto:
+ *  1. o instante de partida sai do HASH da leitura (`espalha`), não de Math.random():
+ *     com aleatório, cada poll de 60 s re-sorteia tudo e a cidade inteira dá um pulo.
+ *     Com hash, a viagem das 8h12 do José entra sempre na mesma fase;
+ *  2. o atraso de cada uma é sorteado dentro de `CICLO - duração dela`, de modo que
+ *     toda viagem TERMINA dentro do ciclo. Sem isso a mais longa seria cortada no meio
+ *     ao reiniciar o laço, e um corte no meio da rua se lê como bug;
+ *  3. `currentTime` é UNIFORM: muda todo quadro e vive em `props`. Ele JAMAIS entra num
+ *     `updateTrigger` — isso reavaliaria o accessor de ~106 fios × ~40 vértices 60×/s
+ *     e o mapa engasgaria. Ver deck.gl/docs/developer-guide/performance.               */
+const VKMH = { a_pe: 5, bicicleta: 15, onibus: 22, transporte_escolar: 22,
+               moto: 32, carro: 35, carona: 35, aplicativo: 35, caminhao: 28 };
+const V_PADRAO = 25;
+function eixoDoTempo(fios) {
+  if (!fios.length) return { loop: 3000, trail: 360 };
+  let maxBase = 0;
+  for (const f of fios) {
+    const P = f.path;
+    const ts = [0];
+    let acc = 0;
+    for (let i = 1; i < P.length; i++) {
+      acc += Math.hypot((P[i][0] - P[i - 1][0]) * M_LON, (P[i][1] - P[i - 1][1]) * M_LAT);
+      ts.push(acc);
+    }
+    /* metros → unidade de tempo. Dividir pela velocidade é o que faz o modal aparecer:
+       o mesmo quarteirão custa 7× mais tempo a pé do que de carro. */
+    const esc = 3.0 / (VKMH[f.a.modal] || V_PADRAO);
+    f.base = ts.map((x) => x * esc);
+    if (f.base[f.base.length - 1] > maxBase) maxBase = f.base[f.base.length - 1];
+  }
+  const CICLO = Math.max(600, maxBase * 1.6);
+  for (const f of fios) {
+    const dur = f.base[f.base.length - 1];
+    const off = espalha(f.a.id + '|t') * Math.max(0, CICLO - dur);
+    f.ts = f.base.map((x) => x + off);
+    f.dur = dur + off;
+    f.base = null;
+  }
+  const trail = Math.max(90, CICLO * 0.12);
+  return { loop: CICLO + trail, trail };
+}
+
 const Z_BASE = 12, Z_TOPO = 320;          // fitas rentes ao solo: 12 m a 330 m
 function montarRotas() {
   S.rotas = null;
@@ -984,8 +1037,9 @@ function montarRotas() {
   }));
   const aneis = [...paradas].map(([no, A]) => ({
     pos: [G.n[2 * no], G.n[2 * no + 1]], n: A.curtas + A.semDestino, ...A }));
+  const T = eixoDoTempo(fios);
   S.rotas = { segs, pernas, diretas, aneis, fios, maxC, naMalha, foraMalha, curtas, semDestino,
-              ms: Math.round(performance.now() - t0) };
+              loop: T.loop, trail: T.trail, ms: Math.round(performance.now() - t0) };
 }
 
 /* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
@@ -1150,13 +1204,41 @@ function montarCamadasRotas(L) {
    * de um deles — engrossar seria reinventar a fita agregada por outro nome.          */
   if (!S.agregar && R.fios.length) L.push(new deck.PathLayer({
     id: 'rotas-fios', data: R.fios, getPath: (d) => d.path, pickable: true,
+    /* alfa baixo de propósito: a fita fina continua sendo o TRAÇADO (é ela que responde
+       "por onde foi", e é ela que o mouse pega); o cometa por cima é só o MOVIMENTO.
+       Nos 215 de antes, as duas brigavam e a partícula sumia dentro da própria linha. */
     getColor: (d) => { const b = brilho(d.a);
       const c = d.inter ? GELO : corDe(d.a);
-      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), d.inter ? 175 : 215]; },
+      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), d.inter ? 95 : 110]; },
     widthUnits: 'pixels', getWidth: (d) => 1.5 + brilho(d.a) * 3.2,
     widthMinPixels: 1.1, capRounded: true, jointRounded: true,
     updateTriggers: { getColor: [S.modo, S.anim], getWidth: S.anim },
   }));
+
+  /* ── OS COMETAS. Cada leitura vira uma partícula correndo o seu próprio caminho, na
+   * velocidade típica do modo dela (ver `eixoDoTempo`). Três emissões da MESMA camada
+   * com blend aditivo — halo largo e fraco, halo médio, núcleo cheio: onde duas rotas
+   * se cruzam as cores somam e o nó satura sozinho em branco sobre o fundo #0a1018.
+   * O cruzamento mais quente da cidade se acende sem que ninguém calcule nada.
+   * Custo: 3 draw calls sobre ~106 caminhos. Irrelevante.
+   * `currentTime` fora dos updateTriggers — é uniform, ver o bloco `eixoDoTempo`.     */
+  if (!S.agregar && R.fios.length && deck.TripsLayer) {
+    const ADITIVO = { blend: true, depthWriteEnabled: false,
+      blendColorSrcFactor: 'src-alpha', blendColorDstFactor: 'one', blendColorOperation: 'add',
+      blendAlphaSrcFactor: 'src-alpha', blendAlphaDstFactor: 'one', blendAlphaOperation: 'add' };
+    [[4.6, 0.16, 'halo'], [2.3, 0.30, 'meio'], [1.0, 1.00, 'nucleo']].forEach(([w, op, tag]) =>
+      L.push(new deck.TripsLayer({
+        id: 'rotas-cometas-' + tag, data: R.fios,
+        getPath: (d) => d.path, getTimestamps: (d) => d.ts,
+        getColor: (d) => { const c = d.inter ? GELO : corDe(d.a);
+          return [Math.round(c[0] * op), Math.round(c[1] * op), Math.round(c[2] * op)]; },
+        currentTime: S.tFluxo, trailLength: R.trail, fadeTrail: true,
+        widthUnits: 'pixels', getWidth: w, widthMinPixels: Math.max(1, w * 0.8),
+        capRounded: true, jointRounded: true, pickable: false,
+        parameters: ADITIVO,
+        updateTriggers: { getColor: [S.modo, S.anim] },
+      })));
+  }
 
   /* perna intermunicipal: da porta da malha até a sede. Mesmo gelo dos arcos externos.
      Só no agregado — nas individuais cada fio já leva a sua própria perna emendada. */
@@ -1263,6 +1345,9 @@ function quadro() {
   if (document.hidden || !S.deck) return;
   const t = performance.now();
   S.pulso = 1 + Math.sin(t / 1250) * 0.09;
+  /* o relógio dos cometas. t/6 => 1.000 unidades de tempo a cada 6 s de parede. É prop
+     uniforme: muda todo quadro sem regerar atributo nenhum. */
+  S.tFluxo = (t / 6) % (S.rotas ? S.rotas.loop : 3000);
   /* mexer no S.anim é o que obriga a reavaliar cor e largura por arco: só durante o
      flash. Fora dele, o rebuild das camadas é diff de referência — não regera atributo. */
   if (Date.now() < S.flashAte) S.anim = t | 0;
@@ -1333,6 +1418,12 @@ function pintarLegendaRotas() {
     for (const f of R.fios) { const k = S.modo === 'periodo' ? f.a.periodo : f.a.modal;
       cont[k] = (cont[k] || 0) + 1; }
     linhas.push(`<div class="fita" style="margin-bottom:.4rem"><b style="color:var(--txt)">${num(R.fios.length)}</b>&nbsp;fios — um por leitura roteada</div>`);
+    /* SEM ESTA FRASE, CORTE A ANIMAÇÃO. Uma partícula que corre sem dizer o que a
+       velocidade dela significa é enfeite, e enfeite numa tela de decisão tira
+       credibilidade do resto. Com a frase, ela vira o argumento de mobilidade. */
+    if (deck.TripsLayer) linhas.push('<div class="fita" style="color:var(--txt3);'
+      + 'font-size:11.5px;line-height:1.45;margin:-.1rem 0 .45rem">a partícula corre na '
+      + '<b style="color:var(--txt2)">velocidade típica do modo</b> — a pé arrasta, carro cruza</div>');
     linhas.push(...lista.filter(([k]) => cont[k])
       .map(([k, r, c]) => `<div class="item"><i style="background:rgb(${c.join(',')})"></i>
         ${esc(r)} <b>${num(cont[k])}</b></div>`));
