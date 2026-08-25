@@ -766,7 +766,13 @@ function telaCascata(box, t) {
           estruturalmente condenado a ser ignorado. Esta linha chega com a pessoa presente,
           que é o único momento em que o dado ainda pode ser corrigido. É uma linha no
           template que já existe: não cria tela, ramo de navegação nem toque. */
-      p === 'destino' && S.r.origem_nivel
+      /* `!jaTem` não é detalhe: medido no Pages a 360x640 (Android básico da equipe), a linha
+         custa 58 px e empurra o "Seguir" para exatamente a dobra. Com o destino JÁ registrado
+         o bloco "Registrado:" ainda se soma a ela, e o Seguir — único caminho adiante quando
+         se volta pelo "‹ Voltar" — sai da tela. Foi esse o bug do D1 ("deu OK e voltou pra
+         origem"). A linha serve para preparar a pergunta ANTES de gravar o destino; depois de
+         gravado ela não informa mais nada e só ocupa a altura que falta. */
+      p === 'destino' && S.r.origem_nivel && !jaTem
         ? `<p class="ctx-origem">Origem: <b>${esc(resumoLocal('origem'))}</b> — o destino tem de ser OUTRO lugar</p>` : ''}
     ${jaTem ? `<div class="aviso ok">Registrado: <b>${esc(resumoLocal(p))}</b> (nível ${jaTem})</div>` : ''}
     ${(t.atalhos || []).length ? `<div class="chips c2" id="c-atalhos">${t.atalhos.map((a) =>
