@@ -351,12 +351,16 @@ function enquadrar() {
   let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
   for (const c of pts) { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]); }
   const merc = (lat) => Math.log(Math.tan(Math.PI / 4 + (lat * Math.PI) / 360));
-  const w = Math.max(320, innerWidth), h = Math.max(320, innerHeight), pad = 90;
+  const w = Math.max(320, innerWidth), h = Math.max(320, innerHeight), pad = 80;
   const zx = Math.log2(((w - 2 * pad) / 512) / Math.max(1e-9, (x1 - x0) / 360));
   const zy = Math.log2(((h - 2 * pad) / 512) / Math.max(1e-9, (merc(y1) - merc(y0)) / (2 * Math.PI)));
-  /* −0.55: com pitch 45 o chão foge para o horizonte e os arcos altos precisam de céu */
-  return { longitude: (x0 + x1) / 2, latitude: (y0 + y1) / 2,
-           zoom: Math.min(zx, zy) - 0.55, pitch: 45, bearing: 0 };
+  /* +0.5 desfaz o encolhimento do pitch: inclinar 45° achata o chão por cos(45°) na
+   * vertical, então o enquadramento plano sai pequeno demais. O −0.35 devolve o céu
+   * que os arcos longos precisam. E o centro desce um pouco ao sul (0.44 do span):
+   * com pitch, o sul vem para perto do observador — é onde fica o Centro e o grosso
+   * dos arcos, e é lá que a atenção do diretor deve cair.                            */
+  return { longitude: (x0 + x1) / 2, latitude: y0 + (y1 - y0) * 0.44,
+           zoom: Math.min(zx, zy) + 0.15, pitch: 45, bearing: 0 };
 }
 
 /* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
@@ -376,8 +380,8 @@ function camadas() {
   const L = [];
   if (S.vias) L.push(new deck.GeoJsonLayer({
     id: 'vias', data: S.vias, stroked: true, filled: false, pickable: false,
-    getLineColor: [58, 74, 92, 170], lineWidthUnits: 'pixels', getLineWidth: 1,
-    lineWidthMinPixels: 0.7,
+    getLineColor: [70, 90, 112, 205], lineWidthUnits: 'pixels', getLineWidth: 1,
+    lineWidthMinPixels: 0.8,
   }));
   if (S.limite) L.push(new deck.PathLayer({
     id: 'limite', data: [{ path: S.limite }], getPath: (d) => d.path, pickable: false,
