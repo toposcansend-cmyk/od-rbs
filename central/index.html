@@ -144,6 +144,27 @@ nav.abas{display:flex;gap:.3rem}
 .ck.v .val{color:var(--verde-c)} .ck.a .val{color:var(--amarelo)} .ck.r .val{color:#ff7b72}
 .ck .pe{font-size:11.5px;color:var(--txt3);margin-top:.1rem;line-height:1.35}
 
+/* ══ qualidade por pesquisador + cobertura por zona ═════════════════════════
+ * Duas tabelas de leitura, não de ranking: o vermelho aqui é "fora do padrão do
+ * time HOJE", não "pior da turma". Ver o comentário de qualidadePorPesquisador(). */
+.qbox{background:var(--bg2);border:1px solid var(--linha);border-radius:12px;
+  padding:.7rem .8rem .55rem;margin-bottom:.9rem}
+.qrolo{overflow-x:auto}
+table.qual{font-size:13px;min-width:660px}
+table.qual td{white-space:nowrap}
+table.qual td.pes{font-weight:700}
+table.qual td.fora{background:#2a1113;color:#ff7b72;font-weight:800}
+table.qual td.neutro{color:var(--txt2)}
+.qpe{font-size:12px;color:var(--txt3);margin:.55rem .1rem 0;line-height:1.5}
+.qpe b{color:var(--txt2)}
+.qpe .rj{color:#ff7b72}
+.qmed{font-size:11px;color:var(--txt3);font-weight:600;text-transform:none;letter-spacing:0}
+table.zona td.zn{font-weight:700;color:var(--azul)}
+.zbar{display:inline-block;height:6px;border-radius:3px;background:var(--azul);
+  vertical-align:middle;min-width:2px;margin-right:.35rem}
+.znota{font-size:11.5px;color:var(--txt3);margin-top:.5rem;line-height:1.5}
+.znota b{color:var(--txt2)}
+
 /* ══ tabela de linhas cruas ═════════════════════════════════════════════════ */
 .rolo{max-height:calc(100vh - 340px);min-height:300px;overflow:auto;
   border:1px solid var(--linha);border-radius:10px;background:var(--bg2)}
@@ -218,6 +239,10 @@ table.linhas .lug{max-width:230px}
         <h2>Mais atrasados — pior primeiro</h2>
         <div id="atrasados"></div>
       </div>
+      <div class="painelbox" style="margin-bottom:.9rem">
+        <h2>Entrevistas por zona — a mais rasa primeiro</h2>
+        <div id="zonas"></div>
+      </div>
       <div class="painelbox">
         <h2>Pontos fechados</h2>
         <div id="fechados"></div>
@@ -226,7 +251,10 @@ table.linhas .lug{max-width:230px}
   </section>
 
   <footer>
-    <span><a id="link-painel" href="../painel/">↗ painel simples (FUNPAR)</a></span>
+    <!-- D5: as capitais entregam ao gestor público planilha, API e Power BI (NYC Mobility
+         Dashboard, LTA DataMall). Abrir o campo ao contratante ENQUANTO ele acontece é o
+         nosso diferencial — estava escondido atrás de "painel simples". -->
+    <span><a id="link-painel" href="../painel/">↗ Painel do cliente — campo ao vivo</a></span>
     <span><a href="../mapa3d/">🛰 Mapa 3D ao vivo →</a> <span class="mut">um arco por entrevista · PIN do gestor</span></span>
     <span>dados: somente agregados — sem endereços, sem linhas individuais.</span>
     <span class="mut" id="rodape-ver">—</span>
@@ -257,13 +285,19 @@ table.linhas .lug{max-width:230px}
       <button id="btn-sair-dados" type="button" title="Esquecer o acesso do gestor nesta aba">🔒 Travar</button>
     </div>
     <div id="dados-erro"></div>
+    <h2>Qualidade por pesquisador — hoje</h2>
+    <div class="qbox" id="qual"><p class="vazio">carregando…</p></div>
     <h2>Conformidade com o questionário 1.0</h2>
     <section class="conf" id="conf"></section>
     <h2 id="tit-linhas">Linhas de hoje</h2>
     <div class="rolo" id="rolo"><div class="vazio" style="padding:1rem">carregando…</div></div>
-    <footer>
-      <span class="rj">linhas cruas — uso interno Toposcan; não compartilhar este acesso.</span>
-      <span class="mut" id="dados-ver">—</span>
+    <footer style="display:block">
+      <div><span class="rj">linhas cruas — uso interno Toposcan; não compartilhar este acesso.</span>
+        <span class="mut" id="dados-ver">—</span></div>
+      <div class="znota" style="margin-top:.5rem">Recusa é <b>dado</b>, não fracasso: entrevistas +
+        recusas por ponto estimam o <b>fluxo abordável</b>, que é a base do IPF — o fator de
+        expansão da matriz (padrão FTA / <b>TCRP Synthesis 63</b>). Ponto sem recusa registrada
+        é ponto sem denominador.</div>
     </footer>
   </div>
 </div>
@@ -288,6 +322,37 @@ const num = (n) => (n ?? 0).toLocaleString('pt-BR');
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+/* ── Célula da planilha → número, ou null. ESTRITO de propósito: '' e null NÃO viram 0.
+ * O `nn()` da aba Dados devolve 0 para '' (Number('')===0), o que faria um nível VAZIO
+ * contar como "nível 0", logo ≤3, logo bom. No D1 nenhum nível veio vazio, então nada
+ * está torto hoje — mas a régua de qualidade não pode depender disso continuar verdade. */
+const numOuNulo = (v) => {
+  if (v === '' || v === null || v === undefined) return null;
+  const x = Number(v); return isFinite(x) ? x : null;
+};
+
+/* ── "Localizável" = nível ≤3, contado SÓ sobre os destinos dentro do município.
+ * Por que o nível 6 sai do denominador (medido no D1, não deduzido): 6 = "outro
+ * município", e o app não captura logradouro fora de Rio Branco do Sul — por desenho
+ * (DEPLOY §13b: essas viagens estão COMPLETAS no banco, com o nome da cidade).
+ * Contá-las como falha é punir o pesquisador pela viagem que o entrevistado fez.
+ * No D1 isso valia 21 pontos percentuais para o P04 (26% → 47%) — a diferença entre
+ * uma conversa de coaching e uma injustiça. Denominador inflado mente. */
+function localizavel(L, p) {
+  const nv = L.map((x) => numOuNulo(x[p + '_nivel'])).filter((v) => v !== null);
+  const fora = nv.filter((v) => v >= 6).length;
+  const dentro = nv.filter((v) => v <= 5);
+  const ok = dentro.filter((v) => v <= 3).length;
+  return { n: nv.length, fora, dentro: dentro.length, ok,
+           pc: dentro.length ? Math.round((ok / dentro.length) * 100) : null };
+}
+
+/* ── Espelho das linhas do dia para a aba VISÃO.
+ * Vive aqui, e não dentro do `D` da aba Dados, porque o placar() roda no boot — muito
+ * antes de `const D` ser avaliado. Ler `D` dali cairia na zona morta temporal e
+ * derrubaria a Central inteira num ReferenceError. */
+const QD = { linhas: null, meta: null };
 
 /* ── Metas do dia (escala do dono, DEPLOY §5). Fora da janela, cai no 67 do D1. */
 const META_DIA = { '2026-08-25': 67, '2026-08-26': 92, '2026-08-27': 87, '2026-08-31': 89, '2026-09-01': 15 };
@@ -348,6 +413,36 @@ function placar(j) {
   }
   const dentroAlmoco = (() => { const m = agora.getHours() * 60 + agora.getMinutes(); return m >= ALM0 && m < ALM1; })();
 
+  /* ── Taxa de resposta: dar NOME ao que a recusa é.
+   * N/(N+R) não é placar de vergonha, é o insumo do fator de expansão da matriz —
+   * entrevistas + recusas por ponto estimam o fluxo abordável (FTA/TCRP Synthesis 63).
+   * O tile fala do PROJETO porque é isso que a action `painel` devolve; a taxa do DIA
+   * exige as recusas do dia, que só vêm com o PIN do gestor (`linhas_hoje`). */
+  const nT = (t.total || 0), rT = (t.recusas || 0);
+  const respT = (nT + rT) ? Math.round((nT / (nT + rT)) * 100) : null;
+  const rHoje = QD.meta ? (QD.meta.recusas_hoje ?? 0) : null;
+  const respHoje = (rHoje !== null && (hoje + rHoje)) ? Math.round((hoje / (hoje + rHoje)) * 100) : null;
+
+  /* ── Tile 7: a QUALIDADE no mesmo quadro da PRODUTIVIDADE.
+   * Ipsos nunca separa as duas telas, e o D1 mostrou por quê: o campo fez 148 contra
+   * meta de 67 (2,2×) e o destino localizável ficou em 44% contra régua de 70%. Todo
+   * indicador que vira meta deixa de ser indicador — com a barra de quantidade estourada,
+   * o atalho de um toque passa a ser a jogada racional de quem está correndo. O contador
+   * precisa contar as DUAS coisas, lado a lado, na mesma gramática de cor.
+   * O número por PESSOA não entra aqui: a aba Visão é dos 5, e expor a linha de cada um
+   * numa tela compartilhada é ranking, não coaching. Ele vive atrás do PIN, na aba Dados. */
+  const dl = QD.linhas ? localizavel(QD.linhas, 'destino') : null;
+  const ol = QD.linhas ? localizavel(QD.linhas, 'origem') : null;
+  const dCls = !dl || dl.pc == null ? 'n' : dl.pc >= 70 ? 'v' : dl.pc >= 60 ? 'a' : 'r';
+  const tileDestino = !QD.linhas
+    ? `<div class="tile ritmo n"><div class="rot">Destino localizável</div>
+         <div class="val"><s>—</s></div>
+         <div class="pe">precisa do PIN do gestor · abra a aba <b>Dados</b></div></div>`
+    : `<div class="tile ritmo ${dCls}"><div class="rot">Destino localizável</div>
+         <div class="val">${dl.pc == null ? '—' : dl.pc + '%'}</div>
+         <div class="pe">meta 70% · origem está em ${ol.pc == null ? '—' : ol.pc + '%'}${
+           dl.fora ? ` · ${dl.fora} fora do mun.` : ''}</div></div>`;
+
   $('placar').innerHTML = `
   <div class="tile"><div class="rot">Total do projeto</div>
     <div class="val">${num(t.total)} <s>/ ${num(t.meta)}</s></div>
@@ -371,11 +466,15 @@ function placar(j) {
 
   <div class="tile"><div class="rot">Recusas</div>
     <div class="val">${num(t.recusas)}</div>
-    <div class="pe">acumulado do projeto · ${t.recusa_pct ?? 0}% de recusa</div></div>
+    <div class="pe">acumulado do projeto · ${t.recusa_pct ?? 0}% de recusa<br>
+      taxa de resposta ${num(nT)}/(${num(nT)}+${num(rT)}) = <b>${respT == null ? '—' : respT + '%'}</b>${
+        respHoje == null ? '' : ` · hoje ${respHoje}%`} — insumo do fator de expansão</div></div>
 
   <div class="tile ritmo ${cls}"><div class="rot">Ritmo do dia</div>
     <div class="val">${val}</div>
-    <div class="pe">${esc(rot)}${dentroAlmoco ? ' · almoço' : ''}</div></div>`;
+    <div class="pe">${esc(rot)}${dentroAlmoco ? ' · almoço' : ''}</div></div>
+
+  ${tileDestino}`;
 }
 
 /* ═══ 3. Equipe ═══
@@ -456,6 +555,63 @@ function tabelas(j) {
     : '<p class="vazio">nenhum ponto fechou a cota ainda.</p>';
 }
 
+/* ═══ 4b. Cobertura por zona ═══
+ * As 11 zonas de COLETA. A aba `zonas` tem 15, mas 4 delas (ZE01–ZE04: Curitiba/RMC,
+ * Vale do Ribeira, demais municípios do PR, outros estados) são zonas de DESTINO — não
+ * existe ponto de pesquisa lá e nunca haverá leitura. Dividir 350 leituras por 15
+ * infla o denominador com zonas que, por construção, valem zero: a conta certa é por 11. */
+const NOME_ZONA = {
+  ZU01: 'Centro e São Luiz', ZU02: 'Papanduva / Fátima / Madre',
+  ZU03: 'Albarana / Buava / Nodari', ZU04: 'Santaria / Ricarda / Tacaniça',
+  ZU05: 'Jd. dos Minérios / Mina Saiva / Garcia', ZU06: 'Vila Velha / Natânia',
+  ZR01: 'Rural Leste-Sudeste', ZR02: 'Rural Nordeste', ZR03: 'Rural Centro-Norte',
+  ZR04: 'Rural Norte (Açungui / Ribeira)', ZR05: 'Rural Oeste-Noroeste',
+};
+
+function zonas(j) {
+  if (!S.pontos.length) { $('zonas').innerHTML = '<p class="vazio">aguardando pontos.json…</p>'; return; }
+  const api = {}; (j.pontos || []).forEach((p) => { api[p.ponto_id] = p; });
+  const z = {};
+  S.pontos.forEach((g) => {
+    if (String(g.ativo).toLowerCase() === 'false') return;
+    const k = String(g.zona || '—');
+    const a = api[g.ponto_id] || {};
+    z[k] = z[k] || { feito: 0, cota: 0, pts: 0 };
+    z[k].feito += a.feito ?? 0;
+    z[k].cota += a.meta ?? g.meta_entrevistas ?? 0;
+    z[k].pts++;
+  });
+  /* Ordem = instrução de realocação, não curiosidade. Empate em 0% é o caso NORMAL no
+   * começo (no D1 foram 5 zonas zeradas), e aí quem decide é quanto FALTA: mandar gente
+   * para a ZR03, que deve 3 entrevistas, em vez da ZU02, que deve 55, seria realocar pelo
+   * critério errado. Rasa primeiro; empatou, a que tem o maior buraco absoluto. */
+  const linhas = Object.entries(z).map(([k, v]) => ({ k, ...v, falta: Math.max(0, v.cota - v.feito),
+      r: v.cota ? v.feito / v.cota : 0 }))
+    .sort((a, b) => a.r - b.r || b.falta - a.falta);
+  if (!linhas.length) { $('zonas').innerHTML = '<p class="vazio">sem zonas no retorno.</p>'; return; }
+  const maxR = Math.max(...linhas.map((l) => l.r), 1);
+
+  $('zonas').innerHTML = `<div class="qrolo"><table class="zona">
+    <thead><tr><th>Zona</th><th class="n">Pts</th><th class="n">Feito</th><th class="n">Cota</th>
+      <th class="n">Falta</th><th class="n">%</th></tr></thead>
+    <tbody>${linhas.map((l) => `<tr>
+      <td><span class="zn">${esc(l.k)}</span> <span class="mut">${esc(NOME_ZONA[l.k] || '')}</span></td>
+      <td class="n mut">${l.pts}</td>
+      <td class="n">${l.feito === 0 ? '<span class="pill z">0</span>' : num(l.feito)}</td>
+      <td class="n mut">${num(l.cota)}</td>
+      <td class="n"><b>${num(l.falta)}</b></td>
+      <td class="n"><i class="zbar" style="width:${Math.round((l.r / maxR) * 34)}px"></i>${
+        Math.round(l.r * 100)}%</td></tr>`).join('')}</tbody></table></div>
+    <p class="znota">A <b>zona do topo</b> é a instrução de realocação de cota das 07h15 — a aba
+      <b>escala</b> é realocável pelo coordenador em campo, sem tocar no app.<br>
+      Régua internacional: o padrão francês <b>EMC²/Cerema</b> exige <b>70 domicílios e 160
+      pessoas por setor</b>. Com ~350–500 leituras em <b>${linhas.length} zonas de coleta</b>
+      ficamos em <b>${Math.round(350 / linhas.length)}–${Math.round(500 / linhas.length)} por
+      zona</b>: o desenho sustenta afirmação <b>municipal</b> e por <b>corredor</b>, não por zona.
+      As 4 zonas ZE (Curitiba/RMC, Vale do Ribeira, demais PR, outros estados) são de
+      <b>destino</b>, não de coleta — por isso ficam fora desta conta.</p>`;
+}
+
 /* ═══ 5. Mapa ═══ */
 const COR = ['#6e7d8d', '#d29922', '#3fb950', '#da3633'];
 async function iniciarMapa() {
@@ -510,7 +666,7 @@ function pintar() {
   $('alerta').innerHTML = S.erro ? `<div class="erro">${S.erro}</div>` : '';
   const j = S.dados; if (!j) return;
   $('dia').textContent = `dia de campo ${j.data_hoje || '—'} · meta ${num(META_DIA[j.data_hoje] || 67)} entrevistas · janela 07:15–17:50`;
-  placar(j); equipe(j); tabelas(j); desenharPontos();
+  placar(j); equipe(j); tabelas(j); zonas(j); desenharPontos();
   $('rodape-ver').textContent = `servidor: ${j.gerado_em || '—'} · schema ${j.schema_version || '—'}`;
   document.title = `${j.totais?.hoje ?? 0}/${META_DIA[j.data_hoje] || 67} hoje — Central OD RBS`;
 }
@@ -566,7 +722,10 @@ function credGuardada() {
 const corpoAuth = (c) => c.papel === 'diretor'
   ? { diretor: c.token } : { pesquisador_id: 'G01', token: c.token };
 
-const D = { cred: credGuardada(), linhas: null, meta: null,
+/* `falhasAuth` PRECISA nascer 0: sem isso o `D.falhasAuth++` da carregarLinhas() opera
+ * sobre undefined, vira NaN, e `NaN >= 2` é sempre falso — a trava da segunda recusa
+ * seguida nunca disparava e a sessão ficava presa no aviso "nova tentativa em 2 min". */
+const D = { cred: credGuardada(), linhas: null, meta: null, falhasAuth: 0,
             buscadoEm: 0, timer: null, pin: '', ocupado: false };
 
 async function apiPost(corpo) {
@@ -616,6 +775,128 @@ const card = (cls, rot_, val, pe, forte) =>
   `<div class="ck ${cls}${forte ? ' forte' : ''}"><div class="rot">${rot_}</div>
      <div class="val">${val}</div><div class="pe">${pe}</div></div>`;
 
+/* ═══ 8b. QUALIDADE POR PESQUISADOR — o buraco que um total sem rosto não mostra ═══
+ * Doutrina de high-frequency checks (DIME/Banco Mundial, IPA, J-PAL): erro de coleta quase
+ * nunca é uniforme — é 1 ou 2 pessoas com um hábito. "58 entrevistas com destino frouxo" é
+ * um total sem rosto: vira sermão para os 5 em vez de conversa de 30 s com 1. No D1 a
+ * desagregação provou a tese na hora: o destino localizável do time foi 44%, mas isso era
+ * a média de 82% (P02) com 12% (P01) — uma pessoa, um hábito, 31 das 40 leituras paradas
+ * no nível 4 (bairro). O total escondia exatamente a informação acionável.
+ *
+ * REGRA DE PINTURA, e ela é o ponto: NÃO se pinta contra número absoluto, e sim contra a
+ * MEDIANA DOS PARES DO MESMO DIA. Vermelho = pior que a mediana dos pares por mais de 15
+ * pontos percentuais (ou 40% abaixo, na duração). A leitura vira "você está fora do padrão
+ * do time HOJE" — que é coaching, e é o que a literatura de interviewer effects diz que
+ * funciona. Contra alvo fixo, um dia duro para todos pinta os 5 de vermelho e a tabela
+ * deixa de dizer qualquer coisa.
+ *
+ * Três travas para isto NÃO virar ranking:
+ *  1. só existe VERMELHO. Sem âmbar, sem 1º/2º lugar, sem ordenar por nota (ordena por n).
+ *  2. ninguém é pintado com menos de MIN_N leituras, e a mediana só se forma com 3+ pares
+ *     elegíveis. Às 07h30 todos têm 2 linhas e tudo pareceria catástrofe — o painel
+ *     recarrega a cada 2 min desde as 07h15, então esta trava não é teórica.
+ *  3. entrevistas/hora NUNCA é pintada. Pintar quem corre é precisamente o incentivo torto
+ *     que este quadro existe para desarmar: ela está aqui para ser LIDA AO LADO da
+ *     qualidade, nunca para virar meta.                                                   */
+const MIN_N = 8;
+const CASA = 'residência do entrevistado';
+
+const mediana = (xs) => {
+  if (!xs.length) return null;
+  const a = xs.slice().sort((x, y) => x - y), m = a.length >> 1;
+  return a.length % 2 ? a[m] : (a[m - 1] + a[m]) / 2;
+};
+/* 'HH:mm' → minutos. A `hora` já vem do servidor no relógio de São Paulo (horaSP_), o que
+ * evita de vez a armadilha de fuso do §12 — por isso o ritmo sai daqui, e não do ts_inicio. */
+const horaMin = (h) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(h || ''));
+  return m ? +m[1] * 60 + +m[2] : null;
+};
+
+function qualidadePorPesquisador(L) {
+  if (!L.length) { $('qual').innerHTML = '<p class="vazio">nenhuma linha hoje ainda.</p>'; return; }
+  const nomes = {}; (S.dados?.pesquisadores || []).forEach((p) => { nomes[p.pesq_id] = p.nome; });
+
+  const ids = [...new Set(L.map((x) => String(x.pesquisador_id || '—')))].sort();
+  const linhas = ids.map((pid) => {
+    const Q = L.filter((x) => String(x.pesquisador_id) === pid), n = Q.length;
+    const d = localizavel(Q, 'destino'), o = localizavel(Q, 'origem');
+    /* assinatura EXATA do atalho de um toque do app (app.js): grava a referência
+       'residência do entrevistado' e, se o nível ainda estava vazio, carimba nível 5. */
+    const casa = Q.filter((x) => String(x.destino_referencia || '').trim().toLowerCase() === CASA
+      && vazio(x.destino_logradouro)).length;
+    /* assinatura do `gps_perto` NO DESTINO: nível 1 sem logradouro e sem referência. Na
+       origem é plausível ("vim dali"); no destino significa "vou para onde já estou". */
+    const perto = Q.filter((x) => numOuNulo(x.destino_nivel) === 1
+      && vazio(x.destino_logradouro) && vazio(x.destino_referencia)).length;
+    const durs = Q.map((x) => numOuNulo(x.duracao_s)).filter((v) => v !== null);
+    const hs = Q.map((x) => horaMin(x.hora)).filter((v) => v !== null);
+    const span = hs.length >= 2 ? (Math.max(...hs) - Math.min(...hs)) / 60 : null;
+    return { pid, n, d3: d.pc, o3: o.pc, fora: d.fora,
+      casa: n ? Math.round((casa / n) * 100) : null,
+      perto: n ? Math.round((perto / n) * 100) : null,
+      dur: mediana(durs),
+      /* taxa só faz sentido sobre janela real: menos de 30 min ou de 5 leituras é ruído */
+      eh: (span && span >= 0.5 && n >= 5) ? n / span : null,
+      ini: hs.length ? Math.min(...hs) : null, fim: hs.length ? Math.max(...hs) : null };
+  }).sort((a, b) => b.n - a.n);
+
+  /* mediana dos pares: só quem tem massa entra, e só vale com 3+ pares */
+  const elegiveis = linhas.filter((r) => r.n >= MIN_N);
+  const M = {};
+  ['d3', 'o3', 'casa', 'perto', 'dur'].forEach((c) => {
+    const xs = elegiveis.map((r) => r[c]).filter((v) => v !== null && v !== undefined);
+    M[c] = xs.length >= 3 ? mediana(xs) : null;
+  });
+  const compara = M.d3 !== null;
+
+  const fora = (r, c) => {
+    if (!compara || M[c] === null || r[c] === null || r[c] === undefined || r.n < MIN_N) return false;
+    if (c === 'd3' || c === 'o3') return r[c] < M[c] - 15;      // maior = melhor
+    if (c === 'casa' || c === 'perto') return r[c] > M[c] + 15;  // maior = pior
+    if (c === 'dur') return r[c] < M[c] * 0.6;                   // 40% abaixo
+    return false;
+  };
+  const cel = (r, c, suf) => {
+    const v = r[c];
+    return `<td class="n${fora(r, c) ? ' fora' : ''}">${v === null || v === undefined ? '—' : Math.round(v) + (suf || '')}</td>`;
+  };
+  const hhmm = (m) => m === null ? '—' : `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  const med = (c, suf) => M[c] === null ? '—' : Math.round(M[c]) + (suf || '');
+
+  const nVerm = linhas.filter((r) => ['d3', 'o3', 'casa', 'perto', 'dur'].some((c) => fora(r, c))).length;
+
+  $('qual').innerHTML = `<div class="qrolo"><table class="qual">
+    <thead><tr>
+      <th>Pesquisador</th><th class="n">n</th>
+      <th class="n">destino ≤3<div class="qmed">pares ${med('d3', '%')}</div></th>
+      <th class="n">origem ≤3<div class="qmed">pares ${med('o3', '%')}</div></th>
+      <th class="n">“minha casa”<div class="qmed">pares ${med('casa', '%')}</div></th>
+      <th class="n">“aqui perto”<div class="qmed">pares ${med('perto', '%')}</div></th>
+      <th class="n">mediana dur.<div class="qmed">pares ${med('dur', 's')}</div></th>
+      <th class="n">entrev./hora<div class="qmed">não é meta</div></th>
+      <th class="n">janela</th>
+    </tr></thead>
+    <tbody>${linhas.map((r) => `<tr>
+      <td class="pes">${esc(r.pid)} <span class="mut">${esc(nomes[r.pid] || '')}</span></td>
+      <td class="n mut">${num(r.n)}</td>
+      ${cel(r, 'd3', '%')}${cel(r, 'o3', '%')}${cel(r, 'casa', '%')}${cel(r, 'perto', '%')}
+      ${cel(r, 'dur', 's')}
+      <td class="n neutro">${r.eh === null ? '—' : r.eh.toFixed(1)}</td>
+      <td class="n mut">${hhmm(r.ini)}–${hhmm(r.fim)}</td>
+    </tr>`).join('')}</tbody></table></div>
+    <p class="qpe">${compara
+      ? `Vermelho = <b>fora do padrão do time hoje</b> (pior que a mediana dos pares por mais de
+         15 p.p., ou 40% abaixo na duração) — não é ranking, é desvio do dia.
+         ${nVerm ? `<b class="rj">${nVerm} pesquisador(es) em vermelho.</b>` : 'Ninguém fora do padrão agora.'}`
+      : `<b>Poucos dados para comparar com os pares ainda</b> — a pintura liga quando 3+ pesquisadores
+         tiverem ${MIN_N}+ leituras no dia. Até lá a tabela é só descritiva, de propósito:
+         às 07h30 todo mundo tem 2 linhas e qualquer alarme seria falso.`}<br>
+      <b>Quem aparece em vermelho recebe conversa individual de 30 s no briefing, não aviso geral.</b>
+      Nível 6 (outro município) fica fora do denominador de “localizável”: o app não captura rua
+      fora de Rio Branco do Sul, e essas viagens estão completas no banco.</p>`;
+}
+
 function conformidade(L, meta) {
   const n = L.length;
   if (!n) { $('conf').innerHTML = '<p class="vazio">nenhuma linha hoje ainda.</p>'; return; }
@@ -629,13 +910,12 @@ function conformidade(L, meta) {
   const bus = L.filter((x) => x.modal === 'onibus');
   const busSem = bus.filter((x) => vazio(x.acesso_onibus)).length;
 
-  /* régua de 70% em nível <= 3 (Q15 é o espelho disto no servidor) */
-  const niv = (p) => {
-    const c = L.filter((x) => nn(x[p + '_nivel']) !== null);
-    const ok = c.filter((x) => nn(x[p + '_nivel']) <= 3).length;
-    return { n: c.length, ok, pc: c.length ? Math.round((ok / c.length) * 100) : null };
-  };
-  const oN = niv('origem'), dN = niv('destino');
+  /* régua de 70% em nível <= 3 (Q15 é o espelho disto no servidor).
+   * Usa a MESMA localizavel() do tile e da tabela por pesquisador, de propósito: antes
+   * este card dividia por TODAS as linhas e o tile dividia só pelas de dentro do
+   * município — dois números diferentes para a mesma coisa na mesma tela (39% e 44% no
+   * D1). Número torto em silêncio é pior que número ausente. Um só denominador. */
+  const oN = localizavel(L, 'origem'), dN = localizavel(L, 'destino');
   const corNivel = (p) => p == null ? '' : p >= 70 ? 'v' : p >= 60 ? 'a' : 'r';
 
   const curtas = L.filter((x) => nn(x.duracao_s) !== null && nn(x.duracao_s) < 45).length;  // V09
@@ -657,10 +937,10 @@ function conformidade(L, meta) {
     card(busSem ? 'r' : 'v', 'Ônibus sem acesso', num(busSem),
       busSem ? `<b class="rj">BUG</b> — ${busSem} de ${bus.length} com modal=ônibus sem a tela 7`
              : `${bus.length} linha(s) de ônibus, todas com acesso preenchido`, busSem > 0),
-    card(corNivel(oN.pc), 'Origem nível ≤3', oN.pc == null ? '—' : oN.pc + '%',
-      `${oN.ok}/${oN.n} · régua 70%`),
-    card(corNivel(dN.pc), 'Destino nível ≤3', dN.pc == null ? '—' : dN.pc + '%',
-      `${dN.ok}/${dN.n} · régua 70%`),
+    card(corNivel(oN.pc), 'Origem localizável', oN.pc == null ? '—' : oN.pc + '%',
+      `${oN.ok}/${oN.dentro} dentro do mun. · régua 70%${oN.fora ? ` · ${oN.fora} fora` : ''}`),
+    card(corNivel(dN.pc), 'Destino localizável', dN.pc == null ? '—' : dN.pc + '%',
+      `${dN.ok}/${dN.dentro} dentro do mun. · régua 70%${dN.fora ? ` · ${dN.fora} fora` : ''}`),
     card(curtas === 0 ? 'v' : pc(curtas) <= 5 ? 'a' : 'r', 'Duração < 45 s', num(curtas),
       `${pc(curtas)}% das linhas · V09 pede confirmação`),
     card(longe === 0 ? 'v' : pc(longe) <= 3 ? 'a' : 'r', '> 300 m do ponto', num(longe),
@@ -731,6 +1011,12 @@ async function carregarLinhas() {
     D.falhasAuth = 0;
     $('dados-erro').innerHTML = '';
     D.linhas = j.linhas || []; D.meta = j; D.buscadoEm = Date.now();
+    /* espelha para a aba Visão: é o que acende o tile "Destino localizável" e a taxa de
+       resposta do dia. Repinta o placar na hora — senão o número só apareceria no próximo
+       ciclo de 45 s da Visão, e o gestor voltaria da aba Dados para um tile ainda vazio. */
+    QD.linhas = D.linhas; QD.meta = j;
+    if (S.dados) placar(S.dados);
+    qualidadePorPesquisador(D.linhas);
     conformidade(D.linhas, j);
     tabelaLinhas(D.linhas);
     $('tit-linhas').textContent = `Linhas de hoje — ${num(j.servidas)} de ${num(j.total)}, mais recente primeiro`;
@@ -775,6 +1061,8 @@ async function tentarPin() {
 
 function travarDados(motivo) {
   D.cred = null; D.falhasAuth = 0; D.linhas = null; D.buscadoEm = 0;
+  /* travou o acesso: a Visão volta a não saber o número por pessoa nem o do dia */
+  QD.linhas = null; QD.meta = null; if (S.dados) placar(S.dados);
   sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(D.timer); D.timer = null;
   $('gate').hidden = false; $('dados-conteudo').hidden = true;
