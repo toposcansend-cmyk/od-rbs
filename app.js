@@ -1379,6 +1379,7 @@ async function vFila() {
   const pend = await itensPendentes();
   const [a, b] = await Promise.all([todos('respostas'), todos('recusas')]);
   const sinc = [...a, ...b].filter((i) => i.status === 'sincronizado').length;
+  const ultErro = await metaGet('ultimo_erro');
   main().innerHTML = `
     <h2 class="pergunta">Fila e aparelho</h2>
     <div class="resumo"><dl>
@@ -1390,6 +1391,8 @@ async function vFila() {
       <dt>Enviadas</dt><dd>${sinc}</dd>
       <dt>Rede</dt><dd>${navigator.onLine ? 'online' : 'OFFLINE'}</dd>
       <dt>Versão</dt><dd>app ${esc(APP_VERSION)} · schema ${esc(S.schema.schema_version)}</dd>
+      ${ultErro ? `<dt>Último erro</dt><dd style="color:var(--erro);overflow-wrap:anywhere"><small>${
+        esc(ultErro.em.slice(11, 16))} · app ${esc(ultErro.app)} · ${esc(ultErro.msg)}</small></dd>` : ''}
     </dl></div>
     <button class="b-primario b-grande" id="f-sync" style="text-align:center">Sincronizar agora (${pend.length})</button>
     <button class="b-grande" id="f-ponto" style="text-align:center">Trocar de ponto</button>
@@ -1481,5 +1484,18 @@ const EQUIPE_PADRAO = [
   { pesq_id: 'P03', nome: 'Danielle Firmiano Costa dos Santos' },
   { pesq_id: 'P04', nome: 'André Egídio' },
 ];
+
+/* Caixa-preta de erros (24/08 21h20, caso Danielle): qualquer erro não tratado vira
+ * (a) toast vermelho na hora e (b) registro em meta 'ultimo_erro', exibido na tela
+ * Fila e aparelho. Sem isto, erro em campo = "não tá funcionando" sem pista. */
+function registrarErro(origem, msg) {
+  const e = { em: new Date().toISOString(), origem, msg: String(msg).slice(0, 300), app: APP_VERSION };
+  metaSet('ultimo_erro', e).catch(() => {});
+  try { toast('⚠️ Erro no app: ' + e.msg.slice(0, 90), 'erro'); } catch {}
+}
+window.addEventListener('error', (ev) =>
+  registrarErro('erro', (ev.message || '?') + ' @ ' + (ev.filename || '').split('/').pop() + ':' + (ev.lineno || '?')));
+window.addEventListener('unhandledrejection', (ev) =>
+  registrarErro('promise', ev.reason && (ev.reason.stack || ev.reason.message || ev.reason) || '?'));
 
 boot();
