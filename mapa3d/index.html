@@ -56,6 +56,8 @@ button:hover,select:hover{border-color:var(--txt3)}
 #contador .rot{font-size:12px;color:var(--txt2);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 #contador .pe{font-size:12px;color:var(--txt3);margin-top:.4rem;line-height:1.4}
 #contador .pe b{color:var(--txt2)}
+#contador .n.fora{color:#b0d6ff}
+#contador .pe.banco{color:#5d7a96;font-style:italic;margin-top:.2rem}
 #idade{font-size:12.5px;color:var(--txt2);margin-top:.35rem}
 #idade b{color:var(--txt)}
 #idade.velho b{color:var(--amarelo)} #idade.erro b{color:#ff7b72}
@@ -145,16 +147,17 @@ button:hover,select:hover{border-color:var(--txt3)}
     <span class="n arcos" id="c-arcos">—</span><span class="rot">arcos no ar</span>
   </div>
   <div class="grande" style="margin-top:.3rem">
-    <span class="n fora" id="c-fora">—</span><span class="rot" id="c-fora-rot">sem coordenada</span>
+    <span class="n fora" id="c-inter">—</span><span class="rot">viagens intermunicipais</span>
   </div>
   <div class="pe" id="c-detalhe">—</div>
+  <div class="pe banco">todas completas no banco — nenhuma leitura se perde por não caber no mapa</div>
   <div id="idade"><span class="vivo"></span>atualizado há <b>—</b></div>
 </div>
 
 <div id="legenda">
   <h2 id="leg-tit">Período do dia</h2>
   <div id="leg-itens"></div>
-  <div class="nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b></div>
+  <div class="nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b><br>o arco <b style="color:#b0d6ff">gelo</b> termina na <b>sede</b> da cidade vizinha (~1 km), não num endereço</div>
 </div>
 
 <div id="rodape"><span class="rj">arcos individuais — uso interno</span> · o produto final ao cliente é agregado por zona · acesso: <b id="quem">—</b></div>
@@ -212,6 +215,9 @@ const MODAL = [
   ['caminhao',           'Caminhão',    [154, 167, 180]],
 ];
 const CINZA = [130, 145, 162];
+/* tom das viagens INTERMUNICIPAIS — fora das duas paletas de propósito: a ponta de
+   fora é a sede da cidade, não um endereço, e isso tem de saltar aos olhos. */
+const GELO = [176, 214, 255];
 const mapaDe = (lista) => { const m = {}; lista.forEach(([k, , c]) => { m[k] = c; }); return m; };
 const COR = { periodo: mapaDe(PERIODO), modal: mapaDe(MODAL) };
 const NOME = {}; [...PERIODO, ...MODAL].forEach(([k, r]) => { NOME[k] = r; });
@@ -239,6 +245,7 @@ const S = {
   vistos: new Map(),        // chave da leitura -> instante em que ESTE cliente a viu
   primeiraCarga: true,      // a 1ª leva não pisca: seriam 121 flashes de uma vez
   centroides: new Map(), pontos: [], vias: null, limite: null,
+  externos: [], cidades: [],
   deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1,
 };
 const FLASH_MS = 2000;
@@ -287,18 +294,69 @@ async function buscar() {
   } finally { S.ocupado = false; S.primeiraCarga = false; tique(); }
 }
 
-/* ═══ 2. Leitura → arco ═════════════════════════════════════════════════════════
- * Regra de queda, na ordem:
- *   1. lat/lon do próprio extremo (é o dado real, nível 1–3 na maioria);
- *   2. centroide do bairro/localidade, se o nome bater na base de localidades;
- *   3. fora — e CONTADO. Coordenada não se inventa: destino em outro município
- *      não tem ponto no nosso cadastro, então vira número, não arco falso.        */
+/* ═══ 2a. Âncoras dos municípios vizinhos ═══════════════════════════════════════
+ * Viagem que sai de Rio Branco do Sul não tem lat/lon: o app só captura coordenada
+ * dentro do município, e o entrevistado responde "vou para Curitiba". O dado NÃO se
+ * perde — ele é nível 6, com o nome do município gravado. O que faltava era desenhá-lo.
+ *
+ * Estas são as SEDES dos municípios vizinhos (os 10 chips do app + os que apareceram
+ * escritos à mão em campo). É coordenada pública e estável, com precisão de sede
+ * urbana — ~1 km, ordem de grandeza abaixo da escala em que o arco é lido. Por isso o
+ * arco intermunicipal é desenhado com TOM PRÓPRIO e mais alto: quem olha tem de ver
+ * na hora que aquela ponta é "a cidade", não "o endereço".
+ *
+ * A chave é normalizada sem acento e em minúsculas — em campo veio "itaperucu" sem
+ * cedilha e "Itaperuçu" com, e as duas têm de cair no mesmo lugar.                  */
+const ANCORA_MUN = (() => {
+  const bruto = [
+    ['Curitiba',            -25.4284, -49.2733],
+    ['Almirante Tamandaré', -25.3219, -49.3100],
+    ['Colombo',             -25.2925, -49.2242],
+    ['Itaperuçu',           -25.2203, -49.3464],
+    ['Campo Magro',         -25.3697, -49.4506],
+    ['Cerro Azul',          -24.8253, -49.2597],
+    ['Bocaiúva do Sul',     -25.2064, -49.1136],
+    ['Adrianópolis',        -24.6608, -48.9925],
+    ['Doutor Ulysses',      -24.5661, -49.4247],
+    ['Tunas do Paraná',     -25.0069, -49.0883],
+    ['Campo Largo',         -25.4586, -49.5286],
+    ['Araucária',           -25.5925, -49.4106],
+    ['Pinhais',             -25.4442, -49.1925],
+    ['São José dos Pinhais', -25.5305, -49.2064],
+    ['Campina Grande do Sul', -25.3050, -49.0553],
+    ['Castro',              -24.7911, -50.0119],
+    ['Ponta Grossa',        -25.0950, -50.1619],
+  ];
+  const m = new Map();
+  bruto.forEach(([nome, lat, lon]) => m.set(chave(nome), { nome, lat, lon }));
+  return m;
+})();
+/* O próprio município é "casa": escrito solto em campo aparece como "rio branco",
+ * "Rio Branco do Sul", vazio. Nunca vira arco intermunicipal. */
+const EH_CASA = (k) => !k || k === 'rio branco do sul' || k === 'rio branco' || k === 'rbs';
+
+/* ═══ 2b. Leitura → arco ════════════════════════════════════════════════════════
+ * Regra de queda de cada extremo, na ordem:
+ *   1. lat/lon do próprio extremo — o dado real, nível 1–3 na maioria;
+ *   2. dentro de RBS: centroide do bairro/localidade, se o nome bater na base;
+ *   3. fora de RBS: sede do município citado (arco INTERMUNICIPAL, tom próprio);
+ *   4. sem lugar — e CONTADO. Coordenada não se inventa.
+ *
+ * O guarda do passo 2 não é decoração: sem ele, "Centro, Curitiba" bateria com o
+ * "Centro" de Rio Branco do Sul e a viagem para a capital seria desenhada DENTRO do
+ * município. O bairro só vale quando o município é o nosso.                        */
 function extremo(r, p) {
   const la = nn(r[p + '_lat']), lo = nn(r[p + '_lon']);
-  if (la !== null && lo !== null) return { pos: [lo, la], aprox: false };
-  const c = S.centroides.get(chave(r[p + '_bairro']));
-  if (c) return { pos: [c.lon, c.lat], aprox: true };
-  return null;
+  if (la !== null && lo !== null) return { pos: [lo, la], tipo: 'exato' };
+  const mun = chave(r[p + '_municipio']);
+  if (EH_CASA(mun)) {
+    const c = S.centroides.get(chave(r[p + '_bairro']));
+    if (c) return { pos: [c.lon, c.lat], tipo: 'bairro' };
+    return null;                                    // sem lugar: nível 5 sem bairro conhecido
+  }
+  const a = ANCORA_MUN.get(mun);
+  if (a) return { pos: [a.lon, a.lat], tipo: 'municipio', cidade: a.nome };
+  return { tipo: 'sem_ancora', cidade: String(r[p + '_municipio'] || '').trim() };
 }
 
 /* identidade da leitura para o "novo desde o último poll": o servidor não serve o uuid
@@ -318,37 +376,52 @@ function espalha(s) {
 
 function montarArcos(j) {
   const agora = Date.now();
-  const arcos = [];
-  let semCoord = 0, foraMunicipio = 0, aprox = 0;
+  const arcos = [], externos = [], cidades = new Map();
+  let semAncora = 0, semLugar = 0, aprox = 0;
+  const faltantes = new Map();
   for (const r of (j.linhas || [])) {
     const o = extremo(r, 'origem'), d = extremo(r, 'destino');
-    if (!o || !d) {
-      semCoord++;
-      const fora = (!o && chave(r.origem_municipio) && chave(r.origem_municipio) !== 'rio branco do sul')
-                || (!d && chave(r.destino_municipio) && chave(r.destino_municipio) !== 'rio branco do sul');
-      if (fora) foraMunicipio++;
+    /* município citado que não está no dicionário de âncoras: fica de fora, mas com
+     * NOME — é o que diz ao dono qual linha acrescentar da próxima vez. */
+    for (const e of [o, d]) if (e && e.tipo === 'sem_ancora' && e.cidade)
+      faltantes.set(e.cidade, (faltantes.get(e.cidade) || 0) + 1);
+    if (!o || !d || o.tipo === 'sem_ancora' || d.tipo === 'sem_ancora') {
+      if ((o && o.tipo === 'sem_ancora') || (d && d.tipo === 'sem_ancora')) semAncora++;
+      else semLugar++;
       continue;
     }
-    if (o.aprox || d.aprox) aprox++;
+    const inter = o.tipo === 'municipio' || d.tipo === 'municipio';
+    if (o.tipo === 'bairro' || d.tipo === 'bairro') aprox++;
+    if (o.tipo === 'municipio') cidades.set(o.cidade, o.pos);
+    if (d.tipo === 'municipio') cidades.set(d.cidade, d.pos);
     const id = idLeitura(r);
     if (!S.vistos.has(id)) S.vistos.set(id, S.primeiraCarga ? 0 : agora);
-    arcos.push({
-      id, o: o.pos, d: d.pos, aprox: o.aprox || d.aprox,
-      alt: 0.86 + espalha(id) * 0.34,          // ±18% em torno de 1 → altura ∝ distância
+    const a = {
+      id, o: o.pos, d: d.pos, inter,
+      aprox: o.tipo === 'bairro' || d.tipo === 'bairro',
+      cidade: (d.tipo === 'municipio' ? d.cidade : o.tipo === 'municipio' ? o.cidade : ''),
+      /* ±18% em torno de 1 → altura ∝ distância. O intermunicipal sobe mais (×1.45):
+         vai longe e precisa passar por cima do desenho do município. */
+      alt: (0.86 + espalha(id) * 0.34) * (inter ? 1.45 : 1),
       periodo: String(r.periodo || ''), modal: String(r.modal || ''),
       hora: r.hora, pesq: r.pesquisador_id, ponto: r.ponto_id,
       ob: r.origem_bairro || r.origem_municipio || '—',
       db: r.destino_bairro || r.destino_municipio || '—',
       onv: nn(r.origem_nivel), dnv: nn(r.destino_nivel),
       nasceu: S.vistos.get(id),
-    });
+    };
+    (inter ? externos : arcos).push(a);
   }
-  S.arcos = arcos;
-  S.resumo = { total: j.total, com_arco: j.com_arco, sem_coord: j.sem_coord,
-               desenhados: arcos.length, semCoord, foraMunicipio, aprox,
-               truncado: j.truncado, teto: j.teto };
+  S.arcos = arcos; S.externos = externos;
+  S.cidades = [...cidades].map(([nome, pos]) => ({ nome, pos }));
+  S.resumo = {
+    total: j.total, desenhados: arcos.length + externos.length,
+    internos: arcos.length, inter: externos.length,
+    semAncora, semLugar, aprox, truncado: j.truncado, teto: j.teto,
+    faltantes: [...faltantes].sort((a, b) => b[1] - a[1]),
+  };
   /* algum arco nasceu agora? liga a janela de flash */
-  const maisNovo = arcos.reduce((a, x) => Math.max(a, x.nasceu || 0), 0);
+  const maisNovo = [...arcos, ...externos].reduce((a, x) => Math.max(a, x.nasceu || 0), 0);
   if (maisNovo && Date.now() - maisNovo < FLASH_MS) S.flashAte = maisNovo + FLASH_MS;
 }
 
@@ -441,6 +514,41 @@ function camadas() {
     updateTriggers: { getSourceColor: [S.modo, S.anim], getTargetColor: [S.modo, S.anim],
                       getWidth: S.anim },
   }));
+
+  /* ── Arcos INTERMUNICIPAIS, em camada e tom próprios.
+   * A ponta de fora é a SEDE do município, não um endereço: precisão de ~1 km contra
+   * os ~10 m dos arcos internos. Misturá-los na mesma cor seria mentir por omissão —
+   * daí o tom gelo, o traço mais fino e a altura maior. O tooltip diz a cidade.     */
+  if (S.externos.length) L.push(new deck.ArcLayer({
+    id: 'arcos-inter', data: S.externos, pickable: true, greatCircle: false,
+    getSourcePosition: (a) => a.o, getTargetPosition: (a) => a.d,
+    getSourceColor: (a) => { const b = brilho(a);
+      return [...(b ? mix(GELO, [255, 255, 255], b * 0.85) : GELO), 70]; },
+    getTargetColor: (a) => { const b = brilho(a);
+      return [...(b ? mix(GELO, [255, 255, 255], b * 0.9) : GELO), 210]; },
+    getHeight: (a) => a.alt,
+    widthUnits: 'pixels', getWidth: (a) => 0.85 + brilho(a) * 3.2,
+    widthMinPixels: 0.7, widthScale: S.pulso,
+    updateTriggers: { getSourceColor: S.anim, getTargetColor: S.anim, getWidth: S.anim },
+  }));
+
+  /* nome da cidade na ponta de fora: sem isto o arco some para um ponto anônimo */
+  if (S.cidades.length) L.push(new deck.TextLayer({
+    id: 'cidades', data: S.cidades, pickable: false,
+    getPosition: (c) => c.pos, getText: (c) => c.nome.toUpperCase(),
+    getSize: 11, sizeUnits: 'pixels', getColor: [...GELO, 235],
+    getTextAnchor: 'middle', getAlignmentBaseline: 'top', getPixelOffset: [0, 8],
+    /* 'auto': o atlas padrão do deck.gl é ASCII e comeria o Ç de ITAPERUÇU,
+       o Ú de BOCAIÚVA e o Ó de ADRIANÓPOLIS. */
+    characterSet: 'auto', fontFamily: 'system-ui, sans-serif', fontWeight: 700,
+    outlineWidth: 3, outlineColor: [4, 7, 10, 255], fontSettings: { sdf: true },
+  }));
+  if (S.cidades.length) L.push(new deck.ScatterplotLayer({
+    id: 'sedes', data: S.cidades, pickable: false, getPosition: (c) => c.pos,
+    radiusUnits: 'pixels', getRadius: 3, radiusMinPixels: 3,
+    filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 1.4,
+    getLineColor: [...GELO, 220],
+  }));
   return L;
 }
 
@@ -459,7 +567,8 @@ function tooltip({ object, layer }) {
      <span style="color:#66768a">· ${esc(NOME[object.periodo] || object.periodo || '—')}</span><br>
      ${nv(object.onv)}${esc(object.ob)} <span style="color:#3fb950">→</span> ${nv(object.dnv)}${esc(object.db)}<br>
      <span style="color:#66768a">${esc(object.hora)} · ${esc(object.pesq)} · ${esc(object.ponto)}${
-       object.aprox ? ' · <i style="color:#d29922">ponta por centroide de bairro</i>' : ''}</span>` };
+       object.aprox ? ' · <i style="color:#d29922">ponta por centroide de bairro</i>' : ''}${
+       object.inter ? ' · <i style="color:#b0d6ff">intermunicipal: ponta na sede de ' + esc(object.cidade) + '</i>' : ''}</span>` };
 }
 
 function iniciarDeck() {
@@ -499,18 +608,31 @@ function pintarLegenda() {
     .map(([k, r, c]) => `<div class="item"><i style="background:rgb(${c.join(',')})"></i>
       ${esc(r)} <b>${num(cont[k] || 0)}</b></div>`).join('')
     || '<div class="item">sem arcos ainda</div>';
+  /* o intermunicipal é linha à parte nos DOIS modos: não é categoria de período nem de
+     modal, é categoria de PRECISÃO da ponta. */
+  if (S.externos.length) $('leg-itens').innerHTML +=
+    `<div class="item" style="margin-top:.35rem;border-top:1px solid var(--linha);padding-top:.4rem">
+       <i style="background:rgb(${GELO.join(',')})"></i> Intermunicipal <b>${num(S.externos.length)}</b></div>`;
 }
 
+/* O contador antigo dizia "N SEM COORDENADA" e o dono leu aquilo como PERDA DE DADO.
+ * Não era: são viagens que saem do município, nível 6, com o nome da cidade gravado —
+ * o que faltava era desenhá-las. Agora o número grande é o que foi DESENHADO até a
+ * cidade; o que sobra vem nomeado e com o lembrete de que o banco está inteiro.      */
 function pintarContador() {
   const z = S.resumo; if (!z) return;
   $('c-leituras').textContent = num(z.total);
   $('c-arcos').textContent = num(z.desenhados);
-  $('c-fora').textContent = num(z.semCoord);
-  const partes = [];
-  if (z.foraMunicipio) partes.push(`<b>${num(z.foraMunicipio)}</b> com ponta em outro município (nível 6 — o app não captura coordenada fora de RBS)`);
-  if (z.aprox) partes.push(`<b>${num(z.aprox)}</b> arco(s) com uma ponta no centroide do bairro`);
+  $('c-inter').textContent = num(z.inter);
+  const partes = [`<b>${num(z.inter)}</b> desenhadas até a cidade`];
+  if (z.semAncora) {
+    const quais = z.faltantes.slice(0, 3).map(([c, n]) => `${esc(c)} (${n})`).join(', ');
+    partes.push(`<b>${num(z.semAncora)}</b> sem âncora${quais ? ': ' + quais : ''}`);
+  }
+  if (z.semLugar) partes.push(`<b>${num(z.semLugar)}</b> sem lugar no mapa (nível 5 sem bairro reconhecido)`);
+  if (z.aprox) partes.push(`<b>${num(z.aprox)}</b> com uma ponta no centroide do bairro`);
   if (z.truncado) partes.push(`lista cortada no teto de ${num(z.teto)}`);
-  $('c-detalhe').innerHTML = partes.join(' · ') || 'todas as leituras com coordenada nos dois extremos';
+  $('c-detalhe').innerHTML = partes.join(' · ');
   pintarLegenda();
 }
 
@@ -556,7 +678,9 @@ async function tentarPin() {
 }
 
 function travar(motivo) {
-  S.cred = null; S.arcos = []; S.resumo = null; S.buscadoEm = 0;
+  S.cred = null; S.falhasAuth = 0; S.resumo = null; S.buscadoEm = 0;
+  /* travar limpa a TELA, não só o token: arcos e nomes de cidade são dado individual */
+  S.arcos = []; S.externos = []; S.cidades = [];
   sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(S.timer); S.timer = null;
   desenhar(); tique();
