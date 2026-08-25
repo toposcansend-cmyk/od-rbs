@@ -44,6 +44,10 @@ button:hover,select:hover{border-color:var(--txt3)}
 .espaco{flex:1 1 auto}
 #ctrl{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
 #ctrl label{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--txt2);font-weight:700}
+/* os grupos "Cor por" e "Filtrar" se revezam conforme a vista; sem isto o [hidden] perde
+   para o display do flex e o controle escondido continua ocupando lugar na barra */
+#ctrl>span{display:inline-flex;align-items:center;gap:.5rem}
+#ctrl>span[hidden]{display:none}
 
 /* placar grande — é o número que o diretor lê de longe */
 #contador{position:fixed;left:1rem;bottom:1rem;z-index:10;
@@ -58,6 +62,13 @@ button:hover,select:hover{border-color:var(--txt3)}
 #contador .pe b{color:var(--txt2)}
 #contador .n.fora{color:#b0d6ff}
 #contador .pe.banco{color:#5d7a96;font-style:italic;margin-top:.2rem}
+/* a repartição do "no mapa": preciso / municipal / aproximado, cada um na SUA cor —
+   é a linha que responde "e os 129 estão todos aí?" sem o dono ter de perguntar */
+#contador .pe.reparte{font-size:12.5px;color:var(--txt2);margin-top:.3rem}
+#contador .pe.reparte b{font-weight:800}
+#contador .pe.reparte .pr b{color:var(--verde-c)}
+#contador .pe.reparte .mu b{color:#b0d6ff}
+#contador .pe.reparte .ap b{color:var(--amarelo)}
 #idade{font-size:12.5px;color:var(--txt2);margin-top:.35rem}
 #idade b{color:var(--txt)}
 #idade.velho b{color:var(--amarelo)} #idade.erro b{color:#ff7b72}
@@ -74,6 +85,11 @@ button:hover,select:hover{border-color:var(--txt3)}
 .item b{color:var(--txt);font-weight:700;margin-left:auto;font-size:12px}
 #legenda .nota{font-size:11px;color:var(--txt3);margin-top:.5rem;line-height:1.4;
   border-top:1px solid var(--linha);padding-top:.45rem}
+/* escala do modo rotas: a cor é contínua (volume), então a legenda é uma barra, não itens */
+.rampa{height:10px;border-radius:5px;margin:.15rem 0 .3rem}
+.rampa-rot{display:flex;justify-content:space-between;font-size:11.5px;color:var(--txt2);font-weight:700}
+.fita{display:flex;align-items:center;gap:.5rem;font-size:12.5px;color:var(--txt2);padding:.14rem 0}
+.fita i{flex:0 0 auto;border-radius:3px}
 
 /* rodapé */
 #rodape{position:fixed;left:0;right:0;bottom:0;z-index:5;text-align:center;
@@ -128,11 +144,18 @@ button:hover,select:hover{border-color:var(--txt3)}
   </div>
   <div class="espaco"></div>
   <div id="ctrl">
-    <label for="modo">Cor por</label>
+    <label for="vis">Vista</label>
+    <select id="vis" title="Arcos: a viagem em linha reta pelo ar. Rotas: a viagem percorrendo as ruas.">
+      <option value="arcos" selected>Arcos ↑</option>
+      <option value="rotas">Rotas ↓</option>
+    </select>
+    <span id="grp-cor"><label for="modo">Cor por</label>
     <select id="modo">
       <option value="periodo" selected>Período do dia</option>
       <option value="modal">Modo de transporte</option>
-    </select>
+    </select></span>
+    <span id="grp-filtro" hidden><label for="filtro">Filtrar</label>
+    <select id="filtro" title="No modo rotas a cor é o VOLUME do trecho — quem separa período e modal é este filtro."></select></span>
     <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
     <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
     <button id="btn-travar" type="button" title="Esquecer o acesso nesta aba">🔒</button>
@@ -144,11 +167,9 @@ button:hover,select:hover{border-color:var(--txt3)}
 <div id="contador">
   <div class="grande">
     <span class="n" id="c-leituras">—</span><span class="rot">leituras</span>
-    <span class="n arcos" id="c-arcos">—</span><span class="rot">arcos no ar</span>
+    <span class="n arcos" id="c-arcos">—</span><span class="rot" id="c-arcos-rot">no mapa</span>
   </div>
-  <div class="grande" style="margin-top:.3rem">
-    <span class="n fora" id="c-inter">—</span><span class="rot">viagens intermunicipais</span>
-  </div>
+  <div class="pe reparte" id="c-reparte">—</div>
   <div class="pe" id="c-detalhe">—</div>
   <div class="pe banco">todas completas no banco — nenhuma leitura se perde por não caber no mapa</div>
   <div id="idade"><span class="vivo"></span>atualizado há <b>—</b></div>
@@ -157,7 +178,7 @@ button:hover,select:hover{border-color:var(--txt3)}
 <div id="legenda">
   <h2 id="leg-tit">Período do dia</h2>
   <div id="leg-itens"></div>
-  <div class="nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b><br>o arco <b style="color:#b0d6ff">gelo</b> termina na <b>sede</b> da cidade vizinha (~1 km), não num endereço</div>
+  <div class="nota" id="leg-nota">altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b><br>o arco <b style="color:#b0d6ff">gelo</b> termina na <b>sede</b> da cidade vizinha (~1 km), não num endereço</div>
 </div>
 
 <div id="rodape"><span class="rj">arcos individuais — uso interno</span> · o produto final ao cliente é agregado por zona · acesso: <b id="quem">—</b></div>
@@ -195,6 +216,65 @@ const nn = (v) => { if (v === '' || v === null || v === undefined) return null;
   return isFinite(x) ? x : null; };
 /* chave de comparação de lugar: sem acento, sem caixa, sem espaço sobrando */
 const chave = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '') .toLowerCase().replace(/\s+/g, ' ').trim();
+
+/* ═══ 0. Casamento TOLERANTE de nome de lugar ═══════════════════════════════════
+ * Campo é campo: veio "papaduva" (é Papanduva), "area d rosario" (é Areia do Rosário),
+ * "itaperucu" sem cedilha. Comparação literal joga essas leituras fora do mapa e o
+ * contador vira um número que assusta o dono sem motivo — o dado está inteiro no banco.
+ *
+ * Três réguas, nesta ordem:
+ *   1. chave reduzida — sem acento, sem caixa, sem as preposições ("areia do rosario"
+ *      e "areia rosario" viram a MESMA coisa);
+ *   2. distância de edição (Levenshtein) com teto que cresce com o tamanho: 0 para
+ *      nome curtíssimo, 1 até 8 letras, 2 acima. Sem esse teto por tamanho, "madre"
+ *      casaria com "padre" e a tolerância viraria ruído;
+ *   3. contenção — "vila sao pedro" dentro de "divisa de madre com vila sao pedro".
+ * Nunca inventa: se nada bate, devolve null e quem chama decide a queda seguinte.     */
+const PREPOS = new Set(['do', 'da', 'de', 'dos', 'das', 'd', 'e', 'no', 'na', 'o', 'a', 'em']);
+function reduzir(s) {
+  return chave(s).replace(/[.'"`^~()]/g, ' ').split(/[\s\/,\-]+/)
+    .filter((w) => w && !PREPOS.has(w)).join(' ');
+}
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 3) return 99;
+  let ant = new Array(b.length + 1);
+  for (let j = 0; j <= b.length; j++) ant[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i];
+    for (let j = 1; j <= b.length; j++)
+      cur[j] = Math.min(ant[j] + 1, cur[j - 1] + 1, ant[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    ant = cur;
+  }
+  return ant[b.length];
+}
+const tetoEdicao = (k) => (k.length <= 5 ? 0 : k.length <= 8 ? 1 : 2);
+/* índice = Map(chave reduzida -> valor). Cache por (índice, texto bruto): 129 leituras
+   × 2 pontas repetem os mesmos punhados de nomes o dia inteiro. */
+function casar(texto, indice, tag) {
+  const k = reduzir(texto);
+  if (!k) return null;
+  const ck = tag + ' ' + k;
+  if (S.cacheLugar.has(ck)) return S.cacheLugar.get(ck);
+  let achado = indice.get(k) || null;
+  if (!achado) {
+    const teto = tetoEdicao(k);
+    if (teto > 0) {
+      let melhorD = teto + 1;
+      for (const [kk, v] of indice) {
+        if (Math.abs(kk.length - k.length) > teto) continue;
+        const d = levenshtein(k, kk);
+        if (d < melhorD) { melhorD = d; achado = v; if (d === 1) break; }
+      }
+    }
+  }
+  if (!achado && k.length >= 6) {
+    for (const [kk, v] of indice)
+      if (kk.length >= 6 && (kk.indexOf(k) >= 0 || k.indexOf(kk) >= 0)) { achado = v; break; }
+  }
+  S.cacheLugar.set(ck, achado);
+  return achado;
+}
 
 /* ═══ paletas ═══════════════════════════════════════════════════════════════════ */
 const PERIODO = [
@@ -242,13 +322,44 @@ const S = {
   cred: credGuardada(),
   pin: '', ocupado: false, buscadoEm: 0, erro: '', falhasAuth: 0,
   bruto: null, arcos: [], resumo: null, modo: 'periodo',
+  vis: 'arcos', filtro: '',                     // vis: 'arcos' | 'rotas'
   vistos: new Map(),        // chave da leitura -> instante em que ESTE cliente a viu
   primeiraCarga: true,      // a 1ª leva não pisca: seriam 121 flashes de uma vez
-  centroides: new Map(), pontos: [], vias: null, limite: null,
+  centroides: new Map(),    // chave reduzida -> {nome,lat,lon}  (bairros + localidades)
+  cacheLugar: new Map(),    // memo do casamento tolerante
+  pontoPos: new Map(),      // ponto_id -> {pos,nome}  — a queda final de coordenada
+  centroMun: null,          // último recurso absoluto: o meio do município
+  pontos: [], vias: null, limite: null,
   externos: [], cidades: [],
+  G: null, rotas: null,     // grafo viário + rotas acumuladas por aresta
   deck: null, vista: null, timer: null, anim: 0, flashAte: 0, pulso: 1, enquadrouCidades: false,
 };
 const FLASH_MS = 2000;
+
+/* Rampa de VOLUME do modo rotas. A cor ali não é período nem modal (um trecho de rua é
+   compartilhado por viagens de vários períodos e modais — pintar pela "categoria
+   dominante" seria escolher uma e esconder as outras). A cor é quantas viagens passam:
+   frio e apagado = 1 viagem · quente = o eixo mais carregado do dia. Quem separa
+   período e modal no modo rotas é o FILTRO, que não mente sobre a cor.               */
+const RAMPA = [
+  [0.00, [ 58, 100, 138]],
+  [0.28, [ 61, 214, 245]],
+  [0.62, [255, 210,  63]],
+  [1.00, [255, 107,  53]],
+];
+function corVolume(t) {
+  t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < RAMPA.length; i++) {
+    if (t <= RAMPA[i][0]) {
+      const [t0, c0] = RAMPA[i - 1], [t1, c1] = RAMPA[i];
+      const u = (t - t0) / Math.max(1e-6, t1 - t0);
+      return [0, 1, 2].map((j) => Math.round(c0[j] + (c1[j] - c0[j]) * u));
+    }
+  }
+  return RAMPA[RAMPA.length - 1][1];
+}
+const cssRampa = () => 'linear-gradient(90deg,' +
+  RAMPA.map(([t, c]) => `rgb(${c.join(',')}) ${Math.round(t * 100)}%`).join(',') + ')';
 
 /* ═══ 1. Rede ═══════════════════════════════════════════════════════════════════ */
 async function apiPost(corpo) {
@@ -336,7 +447,9 @@ const ANCORA_MUN = (() => {
     ['Ponta Grossa',        -25.0950, -50.1619],
   ];
   const m = new Map();
-  bruto.forEach(([nome, lat, lon]) => m.set(chave(nome), { nome, lat, lon }));
+  /* a chave é a REDUZIDA (sem acento, sem preposição) — é ela que o casamento
+     tolerante consulta; "sao jose dos pinhais" e "sao jose pinhais" caem no mesmo lugar */
+  bruto.forEach(([nome, lat, lon]) => m.set(reduzir(nome), { nome, lat, lon }));
   return m;
 })();
 /* O próprio município é "casa": escrito solto em campo aparece como "rio branco",
@@ -344,28 +457,48 @@ const ANCORA_MUN = (() => {
 const EH_CASA = (k) => !k || k === 'rio branco do sul' || k === 'rio branco' || k === 'rbs';
 
 /* ═══ 2b. Leitura → arco ════════════════════════════════════════════════════════
- * Regra de queda de cada extremo, na ordem:
+ * Regra de queda de cada extremo, na ordem — e a última NUNCA falha, de propósito:
  *   1. lat/lon do próprio extremo — o dado real, nível 1–3 na maioria;
- *   2. dentro de RBS: centroide do bairro/localidade, se o nome bater na base;
- *   3. fora de RBS: sede do município citado (arco INTERMUNICIPAL, tom próprio);
- *   4. sem lugar — e CONTADO. Coordenada não se inventa.
+ *   2. fora de RBS: sede do município citado (arco INTERMUNICIPAL, tom próprio),
+ *      com casamento tolerante contra as 17 âncoras;
+ *   2b. o campo diz "município" mas em campo virou nome de BAIRRO daqui: "papaduva" é
+ *      Papanduva, bairro urbano de Rio Branco do Sul — e também é uma cidade de SC.
+ *      Antes de desistir de um município desconhecido, tenta-o como bairro NOSSO;
+ *   3. dentro de RBS: centroide do bairro/localidade, com o mesmo casamento tolerante;
+ *   4. QUEDA FINAL: o PONTO DA ENTREVISTA (`ponto_id` → pontos.json), em estilo
+ *      "aproximado". Não é invenção de coordenada: é a única coordenada que existe
+ *      naquela leitura — sabemos ONDE a pessoa foi abordada, não para onde foi.
+ *      Vem rotulada no tooltip e contada à parte no placar. Assim nenhuma leitura
+ *      fica de fora do mapa, nunca — e o rótulo não assusta mais ninguém.
  *
- * O guarda do passo 2 não é decoração: sem ele, "Centro, Curitiba" bateria com o
+ * O guarda do passo 3 não é decoração: sem ele, "Centro, Curitiba" bateria com o
  * "Centro" de Rio Branco do Sul e a viagem para a capital seria desenhada DENTRO do
  * município. O bairro só vale quando o município é o nosso.                        */
 function extremo(r, p) {
   const la = nn(r[p + '_lat']), lo = nn(r[p + '_lon']);
   if (la !== null && lo !== null) return { pos: [lo, la], tipo: 'exato' };
-  const mun = chave(r[p + '_municipio']);
-  if (EH_CASA(mun)) {
-    const c = S.centroides.get(chave(r[p + '_bairro']));
-    if (c) return { pos: [c.lon, c.lat], tipo: 'bairro' };
-    return null;                                    // sem lugar: nível 5 sem bairro conhecido
+  const munBruto = String(r[p + '_municipio'] || '').trim();
+  if (!EH_CASA(chave(munBruto))) {
+    const a = casar(munBruto, ANCORA_MUN, 'mun');
+    if (a) return { pos: [a.lon, a.lat], tipo: 'municipio', cidade: a.nome };
+    const b = casar(munBruto, S.centroides, 'loc');          // 2b — "papaduva"
+    if (b) return { pos: [b.lon, b.lat], tipo: 'bairro', lugar: b.nome };
+    return { tipo: 'sem_ancora', cidade: munBruto };
   }
-  const a = ANCORA_MUN.get(mun);
-  if (a) return { pos: [a.lon, a.lat], tipo: 'municipio', cidade: a.nome };
-  return { tipo: 'sem_ancora', cidade: String(r[p + '_municipio'] || '').trim() };
+  const c = casar(r[p + '_bairro'], S.centroides, 'loc');
+  if (c) return { pos: [c.lon, c.lat], tipo: 'bairro', lugar: c.nome };
+  return { tipo: 'sem_lugar' };
 }
+
+/* A queda final. `ponto_id` está em toda linha servida por `arcos_hoje`. */
+function quedaFinal(r) {
+  const p = S.pontoPos.get(String(r.ponto_id || '').trim());
+  if (p) return { pos: p.pos, tipo: 'ponto', lugar: p.nome };
+  if (S.centroMun) return { pos: S.centroMun, tipo: 'centro', lugar: 'Rio Branco do Sul' };
+  return null;
+}
+/* quão firme é a ponta: 0 exata · 1 sede de cidade · 2 centroide de bairro · 3 o ponto */
+const FIRMEZA = { exato: 0, municipio: 1, bairro: 2, ponto: 3, centro: 3 };
 
 /* identidade da leitura para o "novo desde o último poll": o servidor não serve o uuid
  * (é chave de banco), então a tupla hora+pesquisador+ponto+par de coordenadas faz as
@@ -385,28 +518,37 @@ function espalha(s) {
 function montarArcos(j) {
   const agora = Date.now();
   const arcos = [], externos = [], cidades = new Map();
-  let semAncora = 0, semLugar = 0, aprox = 0;
+  let precisos = 0, municipais = 0, aproximados = 0;
+  let porBairro = 0, porPonto = 0, foraDoMapa = 0;
   const faltantes = new Map();
   for (const r of (j.linhas || [])) {
-    const o = extremo(r, 'origem'), d = extremo(r, 'destino');
-    /* município citado que não está no dicionário de âncoras: fica de fora, mas com
-     * NOME — é o que diz ao dono qual linha acrescentar da próxima vez. */
-    for (const e of [o, d]) if (e && e.tipo === 'sem_ancora' && e.cidade)
+    let o = extremo(r, 'origem'), d = extremo(r, 'destino');
+    /* município citado que não está no dicionário de âncoras nem casa com bairro nosso:
+     * a leitura CONTINUA no mapa (queda final), mas o nome da cidade vai para o placar —
+     * é o que diz ao dono qual linha acrescentar no dicionário da próxima vez. */
+    for (const e of [o, d]) if (e.tipo === 'sem_ancora' && e.cidade)
       faltantes.set(e.cidade, (faltantes.get(e.cidade) || 0) + 1);
-    if (!o || !d || o.tipo === 'sem_ancora' || d.tipo === 'sem_ancora') {
-      if ((o && o.tipo === 'sem_ancora') || (d && d.tipo === 'sem_ancora')) semAncora++;
-      else semLugar++;
-      continue;
-    }
+    if (!o.pos) o = quedaFinal(r) || o;
+    if (!d.pos) d = quedaFinal(r) || d;
+    if (!o.pos || !d.pos) { foraDoMapa++; continue; }   // só se pontos.json não carregou
+
     const inter = o.tipo === 'municipio' || d.tipo === 'municipio';
-    if (o.tipo === 'bairro' || d.tipo === 'bairro') aprox++;
+    /* Repartição do "no mapa" — as três caixas são exclusivas e somam o total:
+     *   preciso    = as DUAS pontas com lat/lon próprio (nada foi preenchido);
+     *   municipal  = alguma ponta na SEDE de cidade vizinha (~1 km, e rotulado);
+     *   aproximado = alguma ponta no centroide do bairro ou no ponto da entrevista. */
+    const grau = Math.max(FIRMEZA[o.tipo] ?? 3, FIRMEZA[d.tipo] ?? 3);
+    if (grau === 0) precisos++; else if (inter) municipais++; else aproximados++;
+    if (o.tipo === 'bairro' || d.tipo === 'bairro') porBairro++;
+    if (o.tipo === 'ponto' || d.tipo === 'ponto' || o.tipo === 'centro' || d.tipo === 'centro') porPonto++;
     if (o.tipo === 'municipio') cidades.set(o.cidade, o.pos);
     if (d.tipo === 'municipio') cidades.set(d.cidade, d.pos);
     const id = idLeitura(r);
     if (!S.vistos.has(id)) S.vistos.set(id, S.primeiraCarga ? 0 : agora);
     const a = {
-      id, o: o.pos, d: d.pos, inter,
-      aprox: o.tipo === 'bairro' || d.tipo === 'bairro',
+      id, o: o.pos, d: d.pos, inter, grau,
+      tipoO: o.tipo, tipoD: d.tipo,
+      aprox: grau >= 2,
       cidade: (d.tipo === 'municipio' ? d.cidade : o.tipo === 'municipio' ? o.cidade : ''),
       /* ±18% em torno de 1 → altura ∝ distância. O intermunicipal sobe mais (×1.45):
          vai longe e precisa passar por cima do desenho do município. */
@@ -425,12 +567,14 @@ function montarArcos(j) {
   S.resumo = {
     total: j.total, desenhados: arcos.length + externos.length,
     internos: arcos.length, inter: externos.length,
-    semAncora, semLugar, aprox, truncado: j.truncado, teto: j.teto,
+    precisos, municipais, aproximados, porBairro, porPonto, foraDoMapa,
+    truncado: j.truncado, teto: j.teto,
     faltantes: [...faltantes].sort((a, b) => b[1] - a[1]),
   };
   /* algum arco nasceu agora? liga a janela de flash */
   const maisNovo = [...arcos, ...externos].reduce((a, x) => Math.max(a, x.nasceu || 0), 0);
   if (maisNovo && Date.now() - maisNovo < FLASH_MS) S.flashAte = maisNovo + FLASH_MS;
+  montarRotas();
 }
 
 /* ═══ 3. Fundo — o município desenhado dos NOSSOS dados ═════════════════════════ */
@@ -438,15 +582,17 @@ async function carregarBase() {
   try {
     const loc = await (await fetch('../data/localidades.json')).json();
     [...(loc.bairros_urbanos || []), ...(loc.localidades_rurais || [])].forEach((b) => {
-      const k = chave(b.nome);
+      const k = reduzir(b.nome);
       if (k && !S.centroides.has(k) && nn(b.lat) !== null && nn(b.lon) !== null)
-        S.centroides.set(k, { lat: b.lat, lon: b.lon });
+        S.centroides.set(k, { nome: b.nome, lat: b.lat, lon: b.lon });
     });
   } catch (e) { console.warn('[mapa3d] localidades.json indisponível — sem queda por centroide', e); }
 
   try {
     const p = await (await fetch('../data/pontos.json', { cache: 'no-store' })).json();
     S.pontos = (p.pontos || []).filter((x) => nn(x.lat) !== null && nn(x.lon) !== null);
+    S.pontos.forEach((x) => S.pontoPos.set(String(x.ponto_id).trim(),
+      { pos: [x.lon, x.lat], nome: x.nome || x.ponto_id }));
   } catch (e) { console.warn('[mapa3d] pontos.json indisponível', e); }
 
   try {
@@ -454,6 +600,17 @@ async function carregarBase() {
     if (g.features?.length) S.vias = { type: 'FeatureCollection', features: g.features };
     if (g.limite_ring?.length) S.limite = g.limite_ring;
   } catch (e) { console.warn('[mapa3d] geojson de fundo indisponível — palco sem chão', e); }
+
+  /* último recurso da queda de coordenada: o meio do município. Só é usado se a leitura
+     vier sem `ponto_id` reconhecível — não acontece hoje, mas garante os "129 de 129". */
+  const base = (S.limite && S.limite.length) ? S.limite : S.pontos.map((p) => [p.lon, p.lat]);
+  if (base.length) {
+    let x0 = 180, x1 = -180, y0 = 90, y1 = -90;
+    for (const c of base) { x0 = Math.min(x0, c[0]); x1 = Math.max(x1, c[0]); y0 = Math.min(y0, c[1]); y1 = Math.max(y1, c[1]); }
+    S.centroMun = [(x0 + x1) / 2, (y0 + y1) / 2];
+  }
+
+  await carregarGrafo();
 }
 
 /* enquadramento do município, calculado aqui para não depender de API de viewport */
@@ -478,8 +635,257 @@ function enquadrar() {
            zoom: Math.min(zx, zy) + 0.15, pitch: 45, bearing: 0 };
 }
 
+/* ═══ 3b. MODO ROTAS — a viagem percorrendo as ruas ═════════════════════════════
+ * O arco mostra o DESEJO (de onde para onde). A rota mostra o CAMINHO: cada viagem é
+ * roteada pelo grafo viário e, onde muitas compartilham a mesma rua, o traço engrossa
+ * e sobe. É o afunilamento — o que o cliente contrata como "linha de desejo" só vira
+ * decisão de engenharia quando se vê em QUE rua o volume se junta.
+ *
+ * Honestidades embutidas:
+ *  - custo por metro menor nas arteriais (o grafo guarda a classe de cada aresta): com
+ *    distância pura o Dijkstra espalha as viagens por ruas de bairro e o funil some;
+ *  - se a ponta cai a mais de 800 m de qualquer rua da malha — o caso típico do rural,
+ *    onde o OSM não tem estrada — NÃO se finge rua: a viagem vira uma reta baixa em
+ *    estilo próprio "fora da malha", e ela é contada como tal na legenda;
+ *  - intermunicipal roda até a SAÍDA da malha na direção da cidade e só então segue em
+ *    reta até a sede. O funil até a "porta" da cidade é justamente o que se quer ver.  */
+const SNAP_MAX_M = 800;                   // além disto, a ponta está fora da malha
+const R_TERRA = 6371000;
+function hav(lo1, la1, lo2, la2) {
+  const p = Math.PI / 180;
+  const a = 0.5 - Math.cos((la2 - la1) * p) / 2
+    + Math.cos(la1 * p) * Math.cos(la2 * p) * (1 - Math.cos((lo2 - lo1) * p)) / 2;
+  return 2 * R_TERRA * Math.asin(Math.sqrt(Math.max(0, a)));
+}
+
+/* Quanto vale um metro em cada classe de via. Arterial vale MENOS (sai mais barata),
+   então o caminho mais curto prefere passar por ela — é o que produz o afunilamento
+   na PR-092 e no eixo do Centro em vez de espalhar por rua de bairro. A `costura` é a
+   mais cara de todas: é remendo de ilha do OSM, não é rua conhecida. */
+const FATOR_CLASSE = { primary: 1.35, secondary: 1.25, tertiary: 1.15,
+  residential: 1.0, unclassified: 0.9, service: 0.7, costura: 0.5 };
+
+async function carregarGrafo() {
+  try {
+    const g = await (await fetch('../data/grafo_rbs.json')).json();
+    const n = g.n, e = g.e, c = g.c, N = n.length / 2, E = c.length;
+    const fator = (g.classes || []).map((k) => FATOR_CLASSE[k] || 1);
+    /* peso = metros / fator(classe). O comprimento não vem no arquivo de propósito:
+       recalcular por haversine evita duas verdades sobre a mesma reta. */
+    const peso = new Float64Array(E), metros = new Float64Array(E);
+    for (let i = 0; i < E; i++) {
+      const a = e[2 * i], b = e[2 * i + 1];
+      const m = hav(n[2 * a], n[2 * a + 1], n[2 * b], n[2 * b + 1]);
+      metros[i] = m; peso[i] = m / (fator[c[i]] || 1);
+    }
+    /* adjacência em CSR (offsets + vizinhos): sem array de arrays, sem GC no Dijkstra */
+    const off = new Int32Array(N + 1);
+    for (let i = 0; i < E; i++) { off[e[2 * i] + 1]++; off[e[2 * i + 1] + 1]++; }
+    for (let v = 0; v < N; v++) off[v + 1] += off[v];
+    const cursor = off.slice(0, N);
+    const viz = new Int32Array(2 * E), are = new Int32Array(2 * E);
+    for (let i = 0; i < E; i++) {
+      const a = e[2 * i], b = e[2 * i + 1];
+      viz[cursor[a]] = b; are[cursor[a]++] = i;
+      viz[cursor[b]] = a; are[cursor[b]++] = i;
+    }
+    S.G = { N, E, n, e, c, peso, metros, off, viz, are, meta: g.meta || {} };
+    S.cacheDij = new Map(); S.cacheSnap = new Map(); S.cacheSaida = new Map();
+    console.info('[mapa3d] grafo viário: %d nós · %d arestas · %s km',
+      N, E, (g.meta && g.meta.km) || '?');
+  } catch (err) {
+    console.warn('[mapa3d] grafo_rbs.json indisponível — o modo rotas fica indisponível', err);
+    S.G = null;
+  }
+}
+
+/* nó da malha mais próximo, com a distância do salto. Cache por célula de ~55 m —
+   é o "reusar cache por par O/D arredondado" e derruba 258 buscas para uma dúzia. */
+function snap(pos) {
+  const G = S.G; if (!G) return null;
+  const k = ((pos[0] * 2000) | 0) + ',' + ((pos[1] * 2000) | 0);
+  if (S.cacheSnap.has(k)) return S.cacheSnap.get(k);
+  let melhor = -1, md = Infinity;
+  for (let v = 0; v < G.N; v++) {
+    const d = hav(pos[0], pos[1], G.n[2 * v], G.n[2 * v + 1]);
+    if (d < md) { md = d; melhor = v; }
+  }
+  const r = melhor < 0 ? null : { no: melhor, d: md };
+  S.cacheSnap.set(k, r);
+  return r;
+}
+
+/* a "porta" da cidade: o nó da malha mais próximo da sede vizinha. Todo mundo que vai
+   para Curitiba sai por ele — é o que faz o funil aparecer até a borda do município. */
+function saidaPara(cidade, pos) {
+  if (S.cacheSaida.has(cidade)) return S.cacheSaida.get(cidade);
+  const s = snap(pos);
+  const no = s ? s.no : -1;
+  S.cacheSaida.set(cidade, no);
+  return no;
+}
+
+/* Dijkstra de fonte única, com heap binário. Memoizado por nó de origem: as 129
+   leituras do dia partem de uma dúzia de nós distintos, então rodam ~12 buscas, não 129. */
+function dijkstraDe(src) {
+  if (S.cacheDij.has(src)) return S.cacheDij.get(src);
+  const G = S.G, N = G.N;
+  const dist = new Float64Array(N).fill(Infinity);
+  const prevN = new Int32Array(N).fill(-1);
+  const prevE = new Int32Array(N).fill(-1);
+  const pronto = new Uint8Array(N);
+  const hd = [0], hn = [src];
+  dist[src] = 0;
+  const troca = (i, j) => { const a = hd[i]; hd[i] = hd[j]; hd[j] = a;
+    const b = hn[i]; hn[i] = hn[j]; hn[j] = b; };
+  const empurrar = (d, v) => {
+    let i = hd.length; hd.push(d); hn.push(v);
+    while (i > 0) { const p = (i - 1) >> 1; if (hd[p] <= hd[i]) break; troca(p, i); i = p; }
+  };
+  while (hd.length) {
+    const v = hn[0];
+    const ult = hd.length - 1;
+    hd[0] = hd[ult]; hn[0] = hn[ult]; hd.pop(); hn.pop();
+    let i = 0; const m = hd.length;
+    for (;;) {
+      const l = 2 * i + 1, r = l + 1; let s = i;
+      if (l < m && hd[l] < hd[s]) s = l;
+      if (r < m && hd[r] < hd[s]) s = r;
+      if (s === i) break; troca(s, i); i = s;
+    }
+    if (pronto[v]) continue;
+    pronto[v] = 1;
+    for (let k = G.off[v]; k < G.off[v + 1]; k++) {
+      const u = G.viz[k], a = G.are[k];
+      const nd = dist[v] + G.peso[a];
+      if (nd < dist[u]) { dist[u] = nd; prevN[u] = v; prevE[u] = a; empurrar(nd, u); }
+    }
+  }
+  const r = { dist, prevN, prevE };
+  if (S.cacheDij.size > 48) S.cacheDij.clear();     // o dia inteiro cabe; a trava é higiene
+  S.cacheDij.set(src, r);
+  return r;
+}
+
+/** lista de arestas do caminho a→b, ou null se não houver caminho. */
+function caminho(a, b, cache) {
+  const k = a + '>' + b;
+  if (cache.has(k)) return cache.get(k);
+  let cam = null;
+  if (a !== b) {
+    const D = dijkstraDe(a);
+    if (D.dist[b] < Infinity) {
+      cam = []; let v = b, guarda = 0;
+      while (v !== a && guarda++ < 100000) {
+        const e = D.prevE[v];
+        if (e < 0) { cam = null; break; }
+        cam.push(e); v = D.prevN[v];
+      }
+    }
+  }
+  cache.set(k, cam);
+  return cam;
+}
+
+function passaFiltro(a) {
+  const f = S.filtro;
+  if (!f) return true;
+  if (f.charAt(0) === 'p') return a.periodo === f.slice(2);
+  if (f.charAt(0) === 'm') return a.modal === f.slice(2);
+  return true;
+}
+
+const Z_BASE = 12, Z_TOPO = 320;          // fitas rentes ao solo: 12 m a 330 m
+function montarRotas() {
+  S.rotas = null;
+  const G = S.G;
+  if (!G) return;
+  const t0 = performance.now();
+  const cont = new Float64Array(G.E);
+  const legs = new Map(), paradas = new Map();
+  const diretas = [];
+  const cacheCam = new Map();
+  let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0;
+
+  const anel = (pos, campo) => {
+    const s = snap(pos); if (!s) return;
+    const A = paradas.get(s.no) || { curtas: 0, semDestino: 0 };
+    A[campo]++; paradas.set(s.no, A);
+  };
+  for (const a of [...S.arcos, ...S.externos]) {
+    if (!passaFiltro(a)) continue;
+    const reta = () => { diretas.push({ path: [[a.o[0], a.o[1], Z_BASE], [a.d[0], a.d[1], Z_BASE]] }); foraMalha++; };
+    /* Ponta que caiu no PONTO DA ENTREVISTA não entra nas fitas. Ela é honesta como
+     * arco ("sabemos onde a pessoa estava, não para onde foi"), mas roteá-la pintaria
+     * de volume ruas que ninguém disse ter percorrido — e volume por rua é justamente
+     * o que este modo afirma. Vira anel no ponto: não some do mapa, e não mente. */
+    if (a.tipoO === 'ponto' || a.tipoD === 'ponto' || a.tipoO === 'centro' || a.tipoD === 'centro') {
+      anel(a.tipoO === 'exato' || a.tipoO === 'bairro' ? a.d : a.o, 'semDestino');
+      semDestino++; continue;
+    }
+    if (a.inter) {
+      const oFora = a.tipoO === 'municipio', dFora = a.tipoD === 'municipio';
+      if (oFora && dFora) { reta(); continue; }               // cidade → cidade: sem malha nossa
+      const dentro = oFora ? a.d : a.o, fora = oFora ? a.o : a.d;
+      const sa = snap(dentro), porta = saidaPara(a.cidade, fora);
+      if (!sa || sa.d > SNAP_MAX_M || porta < 0) { reta(); continue; }
+      const cam = caminho(sa.no, porta, cacheCam);
+      if (!cam) { reta(); continue; }
+      for (const e of cam) cont[e]++;
+      const L = legs.get(a.cidade) || { cidade: a.cidade, no: porta, pos: fora, n: 0 };
+      L.n++; legs.set(a.cidade, L);
+      naMalha++;
+      continue;
+    }
+    const sa = snap(a.o), sb = snap(a.d);
+    if (!sa || !sb || sa.d > SNAP_MAX_M || sb.d > SNAP_MAX_M) { reta(); continue; }
+    if (sa.no === sb.no) {
+      /* origem e destino no MESMO nó: viagem curtíssima, ou destino não informado que
+         caiu no ponto da entrevista. Não some do mapa — vira um anel no lugar. */
+      anel(a.o, 'curtas'); curtas++; continue;
+    }
+    const cam = caminho(sa.no, sb.no, cacheCam);
+    if (!cam) { reta(); continue; }
+    for (const e of cam) cont[e]++;
+    naMalha++;
+  }
+
+  let maxC = 0;
+  for (let i = 0; i < G.E; i++) if (cont[i] > maxC) maxC = cont[i];
+  /* altura por NÓ (o maior volume que passa por ele), não por segmento: com altura por
+     segmento cada junção vira um degrau e a fita se parte na tela. */
+  const nz = new Float64Array(G.N);
+  for (let i = 0; i < G.E; i++) if (cont[i] > 0) {
+    const a = G.e[2 * i], b = G.e[2 * i + 1];
+    if (cont[i] > nz[a]) nz[a] = cont[i];
+    if (cont[i] > nz[b]) nz[b] = cont[i];
+  }
+  const alturaDe = (c) => Z_BASE + Z_TOPO * Math.pow(maxC ? c / maxC : 0, 0.6);
+  const segs = [];
+  for (let i = 0; i < G.E; i++) {
+    if (!cont[i]) continue;
+    const a = G.e[2 * i], b = G.e[2 * i + 1];
+    segs.push({
+      path: [[G.n[2 * a], G.n[2 * a + 1], alturaDe(nz[a])],
+             [G.n[2 * b], G.n[2 * b + 1], alturaDe(nz[b])]],
+      n: cont[i], t: maxC > 1 ? (cont[i] - 1) / (maxC - 1) : 1,
+    });
+  }
+  const pernas = [...legs.values()].map((L) => ({
+    cidade: L.cidade, n: L.n,
+    path: [[G.n[2 * L.no], G.n[2 * L.no + 1], Z_BASE + 40],
+           [L.pos[0], L.pos[1], Z_BASE + 40]],
+  }));
+  const aneis = [...paradas].map(([no, A]) => ({
+    pos: [G.n[2 * no], G.n[2 * no + 1]], n: A.curtas + A.semDestino, ...A }));
+  S.rotas = { segs, pernas, diretas, aneis, maxC, naMalha, foraMalha, curtas, semDestino,
+              ms: Math.round(performance.now() - t0) };
+}
+
 /* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
 function corDe(a) { return COR[S.modo][S.modo === 'periodo' ? a.periodo : a.modal] || CINZA; }
+/* alfa por firmeza da ponta: [exata, sede de cidade, centroide de bairro, ponto] */
+const ALFA_O = [150, 150, 100, 70], ALFA_D = [225, 225, 150, 110];
 const mix = (c, alvo, t) => [
   Math.round(c[0] + (alvo[0] - c[0]) * t),
   Math.round(c[1] + (alvo[1] - c[1]) * t),
@@ -493,10 +899,15 @@ function brilho(a) {
 
 function camadas() {
   const L = [];
+  const rotas = S.vis === 'rotas';
   if (S.vias) L.push(new deck.GeoJsonLayer({
     id: 'vias', data: S.vias, stroked: true, filled: false, pickable: false,
-    getLineColor: [70, 90, 112, 205], lineWidthUnits: 'pixels', getLineWidth: 1,
-    lineWidthMinPixels: 0.8,
+    /* no modo rotas a rua não é mais cenário: é o LEITO por onde o volume corre.
+       Um pouco mais clara, para que o trecho sem viagem nenhuma continue legível. */
+    getLineColor: rotas ? [96, 122, 148, 230] : [70, 90, 112, 205],
+    lineWidthUnits: 'pixels', getLineWidth: rotas ? 1.25 : 1,
+    lineWidthMinPixels: rotas ? 1 : 0.8,
+    updateTriggers: { getLineColor: S.vis, getLineWidth: S.vis },
   }));
   if (S.limite) L.push(new deck.PathLayer({
     id: 'limite', data: [{ path: S.limite }], getPath: (d) => d.path, pickable: false,
@@ -510,16 +921,21 @@ function camadas() {
     getFillColor: [110, 130, 152, 90], getLineColor: [140, 165, 190, 175],
   }));
 
-  L.push(new deck.ArcLayer({
+  if (rotas) montarCamadasRotas(L);
+
+  if (!rotas) L.push(new deck.ArcLayer({
     id: 'arcos', data: S.arcos, pickable: true, greatCircle: false,
     getSourcePosition: (a) => a.o, getTargetPosition: (a) => a.d,
     /* direção sem animação cara: a ponta do DESTINO é a clara. */
+    /* a opacidade CONTA a firmeza da ponta: 0/1 = coordenada real, 2 = centroide de
+       bairro, 3 = o ponto da entrevista (destino não informado). Quanto mais tentativo
+       o lugar, mais apagado o traço — quem olha de longe já lê o que é chute. */
     getSourceColor: (a) => { const b = brilho(a), c = mix(corDe(a), [10, 16, 24], 0.42);
-      return [...(b ? mix(c, [255, 255, 255], b * 0.85) : c), a.aprox ? 105 : 150]; },
+      return [...(b ? mix(c, [255, 255, 255], b * 0.85) : c), ALFA_O[a.grau] || 150]; },
     getTargetColor: (a) => { const b = brilho(a), c = corDe(a);
-      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), a.aprox ? 150 : 225]; },
+      return [...(b ? mix(c, [255, 255, 255], b * 0.9) : c), ALFA_D[a.grau] || 225]; },
     getHeight: (a) => a.alt,
-    widthUnits: 'pixels', getWidth: (a) => 1.15 + brilho(a) * 3.6,
+    widthUnits: 'pixels', getWidth: (a) => (a.grau >= 3 ? 0.8 : 1.15) + brilho(a) * 3.6,
     widthMinPixels: 0.9, widthScale: S.pulso,
     updateTriggers: { getSourceColor: [S.modo, S.anim], getTargetColor: [S.modo, S.anim],
                       getWidth: S.anim },
@@ -529,7 +945,7 @@ function camadas() {
    * A ponta de fora é a SEDE do município, não um endereço: precisão de ~1 km contra
    * os ~10 m dos arcos internos. Misturá-los na mesma cor seria mentir por omissão —
    * daí o tom gelo, o traço mais fino e a altura maior. O tooltip diz a cidade.     */
-  if (S.externos.length) L.push(new deck.ArcLayer({
+  if (!rotas && S.externos.length) L.push(new deck.ArcLayer({
     id: 'arcos-inter', data: S.externos, pickable: true, greatCircle: false,
     getSourcePosition: (a) => a.o, getTargetPosition: (a) => a.d,
     getSourceColor: (a) => { const b = brilho(a);
@@ -562,22 +978,79 @@ function camadas() {
   return L;
 }
 
+/* As fitas do modo rotas. Três canais dizem a MESMA coisa (volume no trecho) porque
+ * numa parede, de longe, cada um falha de um jeito: a largura some no zoom de fora, a
+ * cor some no projetor fraco, a altura some sem inclinação. Juntos, o funil salta.   */
+function montarCamadasRotas(L) {
+  const R = S.rotas;
+  if (!R) return;
+  const larg = (n) => 1.1 + 13 * Math.sqrt(R.maxC ? n / R.maxC : 0);
+
+  /* fora da malha: reta baixa e apagada. Não finge rua — e a legenda diz o que é. */
+  if (R.diretas.length) L.push(new deck.PathLayer({
+    id: 'rotas-fora', data: R.diretas, getPath: (d) => d.path, pickable: false,
+    getColor: [150, 168, 188, 90], widthUnits: 'pixels', getWidth: 1.1, widthMinPixels: 1,
+  }));
+
+  /* perna intermunicipal: da porta da malha até a sede. Mesmo gelo dos arcos externos. */
+  if (R.pernas.length) L.push(new deck.PathLayer({
+    id: 'rotas-perna', data: R.pernas, getPath: (d) => d.path, pickable: true,
+    getColor: [...GELO, 150], widthUnits: 'pixels',
+    getWidth: (d) => 1.0 + 7 * Math.sqrt(R.maxC ? d.n / R.maxC : 0), widthMinPixels: 1,
+    capRounded: true, jointRounded: true,
+  }));
+
+  if (R.segs.length) L.push(new deck.PathLayer({
+    id: 'rotas', data: R.segs, getPath: (d) => d.path, pickable: true,
+    getColor: (d) => [...corVolume(d.t), 235],
+    widthUnits: 'pixels', getWidth: (d) => larg(d.n), widthMinPixels: 1.2,
+    capRounded: true, jointRounded: true,
+  }));
+
+  /* origem = destino no mesmo nó (viagem curtíssima ou destino não informado que caiu
+     no ponto da entrevista): vira anel. Nada some do mapa por não render uma rota. */
+  if (R.aneis.length) L.push(new deck.ScatterplotLayer({
+    id: 'rotas-aneis', data: R.aneis, pickable: true, getPosition: (d) => d.pos,
+    radiusUnits: 'pixels', getRadius: (d) => 4 + 3 * Math.sqrt(d.n), radiusMinPixels: 4,
+    filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 1.6,
+    getLineColor: [255, 210, 63, 200],
+  }));
+}
+
 function desenhar() { if (S.deck) S.deck.setProps({ layers: camadas() }); }
 
 /* ═══ 5. Motor deck.gl ══════════════════════════════════════════════════════════ */
+const RESSALVA = {
+  bairro: '<i style="color:#d29922">ponta no centroide do bairro</i>',
+  ponto: '<i style="color:#d29922">ponta no PONTO DA ENTREVISTA — o destino não foi informado</i>',
+  centro: '<i style="color:#d29922">ponta no meio do município — sem lugar informado</i>',
+};
 function tooltip({ object, layer }) {
   if (!object) return null;
   if (layer.id === 'pontos') return { html:
     `<b>${esc(object.ponto_id)}</b> ${esc(object.nome)}<br>
      <span style="color:#9aa7b4">${esc(object.bairro || '')} · ${esc(object.tipo)}</span>` };
+  if (layer.id === 'rotas') { const c = corVolume(object.t); return { html:
+    `<b style="color:rgb(${c.join(',')})">${num(object.n)} viagem${object.n > 1 ? 's' : ''}</b>
+     <span style="color:#66768a">neste trecho de rua</span><br>
+     <span style="color:#66768a">largura, cor e altura da fita = volume acumulado</span>` }; }
+  if (layer.id === 'rotas-perna') return { html:
+    `<b style="color:rgb(${GELO.join(',')})">${num(object.n)} viagem${object.n > 1 ? 's' : ''}</b>
+     <span style="color:#66768a">saindo da malha rumo a</span> <b>${esc(object.cidade)}</b><br>
+     <span style="color:#66768a">o trecho fora do município é reto: não temos a malha de lá</span>` };
+  if (layer.id === 'rotas-aneis') return { html:
+    `<b style="color:#ffd23f">${num(object.n)} viagem${object.n > 1 ? 's' : ''} sem rota aqui</b><br>
+     <span style="color:#66768a">${object.curtas ? num(object.curtas) + ' com origem e destino na mesma esquina<br>' : ''}${
+       object.semDestino ? num(object.semDestino) + ' com o destino não informado — a ponta é o ponto da entrevista' : ''}</span>` };
   const c = corDe(object);
   const nv = (n) => n == null ? '' : `<span style="color:${n > 3 ? '#d29922' : '#66768a'}">n${n}</span> `;
+  const ress = [RESSALVA[object.tipoO], RESSALVA[object.tipoD]].filter(Boolean);
   return { html:
     `<b style="color:rgb(${c.join(',')})">${esc(NOME[object.modal] || object.modal || '—')}</b>
      <span style="color:#66768a">· ${esc(NOME[object.periodo] || object.periodo || '—')}</span><br>
      ${nv(object.onv)}${esc(object.ob)} <span style="color:#3fb950">→</span> ${nv(object.dnv)}${esc(object.db)}<br>
      <span style="color:#66768a">${esc(object.hora)} · ${esc(object.pesq)} · ${esc(object.ponto)}${
-       object.aprox ? ' · <i style="color:#d29922">ponta por centroide de bairro</i>' : ''}${
+       ress.length ? ' · ' + [...new Set(ress)].join(' · ') : ''}${
        object.inter ? ' · <i style="color:#b0d6ff">intermunicipal: ponta na sede de ' + esc(object.cidade) + '</i>' : ''}</span>` };
 }
 
@@ -609,6 +1082,9 @@ function quadro() {
 
 /* ═══ 6. HUD ════════════════════════════════════════════════════════════════════ */
 function pintarLegenda() {
+  if (S.vis === 'rotas') return pintarLegendaRotas();
+  $('leg-nota').innerHTML = 'altura do arco ∝ distância percorrida · o lado claro do arco é o <b>destino</b><br>'
+    + 'o arco <b style="color:#b0d6ff">gelo</b> termina na <b>sede</b> da cidade vizinha (~1 km), não num endereço';
   const lista = S.modo === 'periodo' ? PERIODO : MODAL;
   const cont = {}; S.arcos.forEach((a) => { const k = S.modo === 'periodo' ? a.periodo : a.modal;
     cont[k] = (cont[k] || 0) + 1; });
@@ -625,6 +1101,34 @@ function pintarLegenda() {
        <i style="background:rgb(${GELO.join(',')})"></i> Intermunicipal <b>${num(S.externos.length)}</b></div>`;
 }
 
+/* A legenda do modo rotas é OUTRA: aqui não há categoria, há uma escala contínua de
+ * volume. Barra de rampa + as três degradações honestas embaixo. */
+function pintarLegendaRotas() {
+  const R = S.rotas;
+  $('leg-tit').textContent = 'Rotas de trânsito';
+  if (!R) {
+    $('leg-itens').innerHTML = '<div class="item">grafo viário indisponível</div>';
+    $('leg-nota').textContent = 'sem grafo_rbs.json não há como rotear — volte para os Arcos.';
+    return;
+  }
+  const linhas = [
+    `<div class="rampa" style="background:${cssRampa()}"></div>`,
+    `<div class="rampa-rot"><span>1 viagem</span><span>${num(R.maxC)} viagens</span></div>`,
+    `<div class="fita" style="margin-top:.45rem"><i style="width:22px;height:3px;background:rgb(${corVolume(1).join(',')})"></i> trecho mais carregado <b style="margin-left:auto;color:var(--txt)">${num(R.maxC)}</b></div>`,
+    `<div class="fita"><i style="width:22px;height:3px;background:rgb(${GELO.join(',')})"></i> saída rumo à cidade vizinha <b style="margin-left:auto;color:var(--txt)">${num(R.pernas.reduce((a, p) => a + p.n, 0))}</b></div>`,
+  ];
+  if (R.foraMalha) linhas.push(
+    `<div class="fita"><i style="width:22px;height:2px;background:rgba(150,168,188,.55)"></i> fora da malha — reta, sem fingir rua <b style="margin-left:auto;color:var(--txt)">${num(R.foraMalha)}</b></div>`);
+  if (R.curtas) linhas.push(
+    `<div class="fita"><i style="width:9px;height:9px;border:1.5px solid #ffd23f;background:none;border-radius:50%"></i> origem = destino na mesma esquina <b style="margin-left:auto;color:var(--txt)">${num(R.curtas)}</b></div>`);
+  if (R.semDestino) linhas.push(
+    `<div class="fita"><i style="width:9px;height:9px;border:1.5px solid #ffd23f;background:none;border-radius:50%"></i> destino não informado — anel no ponto <b style="margin-left:auto;color:var(--txt)">${num(R.semDestino)}</b></div>`);
+  $('leg-itens').innerHTML = linhas.join('');
+  $('leg-nota').innerHTML = '<b>largura, cor e altura da fita = nº de viagens naquele trecho de rua.</b><br>'
+    + `caminho mais curto no grafo viário do OSM (${num((S.G && S.G.meta.km) || 0)} km de malha), `
+    + 'com peso menor nas arteriais. <b>' + num(R.naMalha) + '</b> viagens rotearam pela malha.';
+}
+
 /* O contador antigo dizia "N SEM COORDENADA" e o dono leu aquilo como PERDA DE DADO.
  * Não era: são viagens que saem do município, nível 6, com o nome da cidade gravado —
  * o que faltava era desenhá-las. Agora o número grande é o que foi DESENHADO até a
@@ -633,16 +1137,25 @@ function pintarContador() {
   const z = S.resumo; if (!z) return;
   $('c-leituras').textContent = num(z.total);
   $('c-arcos').textContent = num(z.desenhados);
-  $('c-inter').textContent = num(z.inter);
-  const partes = [`<b>${num(z.inter)}</b> desenhadas até a cidade`];
-  if (z.semAncora) {
+  $('c-arcos-rot').textContent = z.desenhados === z.total ? 'no mapa' : 'no mapa (de ' + num(z.total) + ')';
+  /* As três caixas são exclusivas e SOMAM o total. É a linha que responde de longe
+     "todas as leituras estão aí?" — e a resposta passou a ser sempre sim. */
+  $('c-reparte').innerHTML =
+    `<span class="pr"><b>${num(z.precisos)}</b> precisos</span> · ` +
+    `<span class="mu"><b>${num(z.municipais)}</b> municipais</span> · ` +
+    `<span class="ap"><b>${num(z.aproximados)}</b> aproximados</span>`;
+  const partes = [];
+  if (z.municipais) partes.push(`municipais = ponta na <b>sede</b> da cidade vizinha (~1 km)`);
+  if (z.porBairro) partes.push(`<b>${num(z.porBairro)}</b> com ponta no centroide do bairro`);
+  if (z.porPonto) partes.push(`<b>${num(z.porPonto)}</b> com ponta no <b>ponto da entrevista</b> (destino não informado)`);
+  if (z.faltantes.length) {
     const quais = z.faltantes.slice(0, 3).map(([c, n]) => `${esc(c)} (${n})`).join(', ');
-    partes.push(`<b>${num(z.semAncora)}</b> sem âncora${quais ? ': ' + quais : ''}`);
+    partes.push(`falta âncora de: ${quais} — desenhadas no ponto até alguém acrescentar a linha`);
   }
-  if (z.semLugar) partes.push(`<b>${num(z.semLugar)}</b> sem lugar no mapa (nível 5 sem bairro reconhecido)`);
-  if (z.aprox) partes.push(`<b>${num(z.aprox)}</b> com uma ponta no centroide do bairro`);
+  if (z.foraDoMapa) partes.push(`<b>${num(z.foraDoMapa)}</b> sem nenhuma coordenada possível`);
   if (z.truncado) partes.push(`lista cortada no teto de ${num(z.teto)}`);
   $('c-detalhe').innerHTML = partes.join(' · ');
+  if (S.vis === 'rotas') montarFiltro();      // modal novo no dia = opção nova na lista
   pintarLegenda();
 }
 
@@ -689,8 +1202,8 @@ async function tentarPin() {
 
 function travar(motivo) {
   S.cred = null; S.falhasAuth = 0; S.resumo = null; S.buscadoEm = 0;
-  /* travar limpa a TELA, não só o token: arcos e nomes de cidade são dado individual */
-  S.arcos = []; S.externos = []; S.cidades = [];
+  /* travar limpa a TELA, não só o token: arcos, rotas e nomes de cidade são dado individual */
+  S.arcos = []; S.externos = []; S.cidades = []; S.rotas = null;
   sessionStorage.removeItem(K_G01); sessionStorage.removeItem(K_DIR);
   clearInterval(S.timer); S.timer = null;
   desenhar(); tique();
@@ -723,6 +1236,29 @@ document.addEventListener('keydown', (ev) => {
 
 /* ═══ 8. Controles ══════════════════════════════════════════════════════════════ */
 $('modo').onchange = (ev) => { S.modo = ev.target.value; S.anim++; desenhar(); pintarLegenda(); };
+
+/* O filtro só existe no modo rotas — lá a COR é o volume do trecho, então quem separa
+   período e modal tem de ser outra coisa. Nos arcos a cor já faz esse trabalho. */
+function montarFiltro() {
+  const usados = (l, campo) => l.filter(([k]) =>
+    [...S.arcos, ...S.externos].some((a) => a[campo] === k));
+  $('filtro').innerHTML = ['<option value="">Todas as viagens</option>']
+    .concat(usados(PERIODO, 'periodo').map(([k, r]) => `<option value="p:${k}">${esc(r)}</option>`))
+    .concat(usados(MODAL, 'modal').map(([k, r]) => `<option value="m:${k}">${esc(r)}</option>`))
+    .join('');
+  $('filtro').value = S.filtro;
+  /* o filtro escolhido pode ter sumido da lista (nenhuma viagem daquele modal hoje):
+     volta para "todas" E refaz as rotas — senão a tela ficaria vazia sem dizer por quê */
+  if ($('filtro').value !== S.filtro) { S.filtro = ''; $('filtro').value = ''; montarRotas(); }
+}
+$('filtro').onchange = (ev) => { S.filtro = ev.target.value; montarRotas(); desenhar(); pintarLegenda(); };
+$('vis').onchange = (ev) => {
+  S.vis = ev.target.value;
+  const rotas = S.vis === 'rotas';
+  $('grp-cor').hidden = rotas; $('grp-filtro').hidden = !rotas;
+  if (rotas) { montarFiltro(); if (!S.rotas) montarRotas(); }
+  S.anim++; desenhar(); pintarLegenda();
+};
 $('btn-agora').onclick = buscar;
 $('btn-travar').onclick = () => travar('Acesso travado. Digite o PIN para voltar.');
 $('btn-vista').onclick = () => { S.vista = enquadrar(); S.deck.setProps({ initialViewState: { ...S.vista, transitionDuration: 700 } }); };
@@ -745,9 +1281,16 @@ else $('gate').hidden = false;
 
 /* Tela AO VIVO: o Service Worker do app é cache-first para tudo que não é `fresco`,
    então esta página se auto-desaloja do cache para a próxima visita vir da rede.
-   O vendor/deckgl.min.js FICA no cache de propósito — é estático e pesa 1,2 MB. */
+   O vendor/deckgl.min.js FICA no cache de propósito — é estático e pesa 1,2 MB.
+   O grafo_rbs.json sai junto ENQUANTO a tela está sendo iterada: ele não faz parte do
+   SHELL, então o SW o guardaria em runtime e um regenerar de grafo nunca chegaria. São
+   89 KB por visita — barato demais para arriscar uma malha velha numa demonstração. */
 if ('caches' in window) caches.keys().then((ks) => ks.forEach((k) =>
-  caches.open(k).then((c) => c.delete(location.pathname, { ignoreSearch: true })))).catch(() => {});
+  caches.open(k).then((c) => {
+    c.delete(location.pathname, { ignoreSearch: true });
+    c.delete('../data/grafo_rbs.json', { ignoreSearch: true });
+    c.delete(new URL('../data/grafo_rbs.json', location.href).pathname, { ignoreSearch: true });
+  }))).catch(() => {});
 </script>
 </body>
 </html>
