@@ -90,6 +90,10 @@ button:hover,select:hover{border-color:var(--txt3)}
 .teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-top:.7rem}
 .teclado button{padding:.75rem 0;font-size:19px;width:100%}
 .teclado button.ok{background:var(--verde);border-color:var(--verde);color:#04140a}
+/* O teclado nasce DESLIGADO. O deck.gl pesa 1,2 MB e o portão é HTML estático: sem isto
+   ele fica clicável antes de o módulo o ligar, e o primeiro PIN digitado cai no vazio —
+   visto ao vivo em 25/08. Volta a ligar no fim do módulo, junto com o resto da tela. */
+.teclado button[disabled]{opacity:.4;cursor:progress}
 .gate-msg{margin-top:.75rem;font-size:13px;min-height:1.3em;color:var(--txt3)}
 .gate-msg.ruim{color:#ff7b72;font-weight:600}
 /* o [hidden] do HTML perde do display:flex acima (seletor de ID vence) — trava aqui */
@@ -161,11 +165,11 @@ button:hover,select:hover{border-color:var(--txt3)}
     <p>Esta tela desenha as entrevistas <b>uma a uma</b>, com coordenada de origem e destino.<br>Digite o seu <b>PIN de 4 dígitos</b> (diretor ou gestor de campo).</p>
     <div class="pinvis" id="pinvis">····</div>
     <div class="teclado" id="teclado">
-      <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
-      <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
-      <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
-      <button type="button" data-k="apagar">←</button><button type="button" data-k="0">0</button>
-      <button type="button" class="ok" data-k="ok">OK</button>
+      <button type="button" disabled data-k="1">1</button><button type="button" disabled data-k="2">2</button><button type="button" disabled data-k="3">3</button>
+      <button type="button" disabled data-k="4">4</button><button type="button" disabled data-k="5">5</button><button type="button" disabled data-k="6">6</button>
+      <button type="button" disabled data-k="7">7</button><button type="button" disabled data-k="8">8</button><button type="button" disabled data-k="9">9</button>
+      <button type="button" disabled data-k="apagar">←</button><button type="button" disabled data-k="0">0</button>
+      <button type="button" class="ok" disabled data-k="ok">OK</button>
     </div>
     <div class="gate-msg" id="gate-msg"></div>
   </div>
@@ -566,6 +570,8 @@ function abrir() {
   S.timer = setInterval(buscar, 60000);       // poll de 60 s, cache no-store
 }
 
+/* ligado só agora: antes disto o clique não teria para onde ir */
+$('teclado').querySelectorAll('button').forEach((b) => { b.disabled = false; });
 $('teclado').onclick = (ev) => {
   const k = ev.target.dataset && ev.target.dataset.k; if (!k) return;
   if (k === 'ok') return tentarPin();
