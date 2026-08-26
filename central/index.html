@@ -320,7 +320,21 @@ try {
 } catch (e) {}
 
 const $ = (id) => document.getElementById(id);
-const token = new URLSearchParams(location.search).get('token') || '';
+/* Token de leitura LEMBRADO POR APARELHO (26/08, print do dono: abriu a URL nua e viu
+ * "falta o token"). Ordem: ?token= da URL (e guarda) → localStorage → se o aparelho já
+ * tem a credencial do diretor/G01, pede à API (action token_painel, travada). */
+const K_TOKEN = 'od_central_token';
+let token = new URLSearchParams(location.search).get('token') || '';
+if (token) localStorage.setItem(K_TOKEN, token);
+else token = localStorage.getItem(K_TOKEN) || '';
+async function recuperarToken() {
+  if (!D.cred) return false;
+  try {
+    const j = await apiPost({ action: 'token_painel', ...corpoAuth(D.cred) });
+    if (j.ok && j.token) { token = j.token; localStorage.setItem(K_TOKEN, token); return true; }
+  } catch (e) {}
+  return false;
+}
 const num = (n) => (n ?? 0).toLocaleString('pt-BR');
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) =>
@@ -386,7 +400,10 @@ const S = { dados: null, buscadoEm: 0, pausado: false, erro: '', mapa: null, cam
 
 /* ═══ 1. Rede ═══ */
 async function buscar() {
-  if (!token) { S.erro = 'Falta o token de leitura na URL: acrescente <code>?token=…</code>'; pintar(); return; }
+  if (!token && !(await recuperarToken())) {
+    S.erro = 'Sem token de leitura neste aparelho. Abra uma vez o link com <code>?token=…</code>, ou destrave a aba <b>Dados</b> com o PIN — depois disso este aparelho lembra sozinho.';
+    pintar(); return;
+  }
   try {
     /* cross-origin: nunca passa pelo Service Worker. no-store por garantia. */
     const r = await fetch(`${API_URL}?action=painel&token=${encodeURIComponent(token)}`, { cache: 'no-store' });
@@ -1085,6 +1102,8 @@ async function tentarPin() {
     }
     D.pin = ''; pintarPin(); msgGate('');
     abrirDados();
+    /* o PIN acabou de provar diretor/G01: se a Visão estava sem token, cura na hora */
+    if (!token) recuperarToken().then((ok) => { if (ok) buscar(); });
   } catch (e) { msgGate('Sem resposta da API: ' + e.message, true); }
 }
 
