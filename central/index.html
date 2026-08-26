@@ -407,7 +407,17 @@ async function buscar() {
   try {
     /* cross-origin: nunca passa pelo Service Worker. no-store por garantia. */
     const r = await fetch(`${API_URL}?action=painel&token=${encodeURIComponent(token)}`, { cache: 'no-store' });
-    const j = JSON.parse(await r.text());
+    const txt = await r.text();
+    let j;
+    /* 3× em 26/08: logo após um redeploy o Google serve uma PÁGINA HTML de erro no lugar
+       do JSON, por alguns segundos. "Unexpected token '<'" na cara do diretor vira susto;
+       o nome certo é instabilidade momentânea + a promessa do retry que o timer já faz. */
+    try { j = JSON.parse(txt); }
+    catch (e) {
+      throw new Error(txt.trim().startsWith('<')
+        ? 'instabilidade momentânea do Google (respondeu uma página de erro) — nova tentativa automática em 45 s'
+        : 'resposta ilegível da API');
+    }
     if (!j.ok) { S.erro = j.erro || 'Acesso negado pela API.'; pintar(); return; }
     S.dados = j; S.buscadoEm = Date.now(); S.erro = '';
   } catch (e) {
