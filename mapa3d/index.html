@@ -686,6 +686,10 @@ async function carregarBase() {
   }
 
   await carregarGrafo();
+  /* regional é OPCIONAL: chega quando chegar e re-roteia sozinho */
+  carregarGrafoRegional().then(() => {
+    if (S.GR && (S.arcos.length || S.externos.length)) { montarRotas(); desenhar(); if (S.vis === 'rotas') pintarLegenda(); }
+  });
 }
 
 /* enquadramento do município, calculado aqui para não depender de API de viewport */
@@ -759,39 +763,147 @@ async function expurgar(rel) {
   } catch (e) { /* sem cache é o caso bom: a rede responde */ }
 }
 
+function montarCSR(g, fatorPorClasse) {
+  const n = g.n, e = g.e, c = g.c, N = n.length / 2, E = c.length;
+  /* peso = metros / fator(classe). O comprimento não vem no arquivo de propósito:
+     recalcular por haversine evita duas verdades sobre a mesma reta. */
+  const peso = new Float64Array(E), metros = new Float64Array(E);
+  for (let i = 0; i < E; i++) {
+    const a = e[2 * i], b = e[2 * i + 1];
+    const m = hav(n[2 * a], n[2 * a + 1], n[2 * b], n[2 * b + 1]);
+    metros[i] = m; peso[i] = m / (fatorPorClasse(c[i]) || 1);
+  }
+  /* adjacência em CSR (offsets + vizinhos): sem array de arrays, sem GC no Dijkstra */
+  const off = new Int32Array(N + 1);
+  for (let i = 0; i < E; i++) { off[e[2 * i] + 1]++; off[e[2 * i + 1] + 1]++; }
+  for (let v = 0; v < N; v++) off[v + 1] += off[v];
+  const cursor = off.slice(0, N);
+  const viz = new Int32Array(2 * E), are = new Int32Array(2 * E);
+  for (let i = 0; i < E; i++) {
+    const a = e[2 * i], b = e[2 * i + 1];
+    viz[cursor[a]] = b; are[cursor[a]++] = i;
+    viz[cursor[b]] = a; are[cursor[b]++] = i;
+  }
+  return { N, E, n, e, c, peso, metros, off, viz, are, meta: g.meta || {} };
+}
+
 async function carregarGrafo() {
   try {
     await expurgar('../data/grafo_rbs.json');
     const g = await (await fetch('../data/grafo_rbs.json', { cache: 'reload' })).json();
-    const n = g.n, e = g.e, c = g.c, N = n.length / 2, E = c.length;
     const fator = (g.classes || []).map((k) => FATOR_CLASSE[k] || 1);
-    /* peso = metros / fator(classe). O comprimento não vem no arquivo de propósito:
-       recalcular por haversine evita duas verdades sobre a mesma reta. */
-    const peso = new Float64Array(E), metros = new Float64Array(E);
-    for (let i = 0; i < E; i++) {
-      const a = e[2 * i], b = e[2 * i + 1];
-      const m = hav(n[2 * a], n[2 * a + 1], n[2 * b], n[2 * b + 1]);
-      metros[i] = m; peso[i] = m / (fator[c[i]] || 1);
-    }
-    /* adjacência em CSR (offsets + vizinhos): sem array de arrays, sem GC no Dijkstra */
-    const off = new Int32Array(N + 1);
-    for (let i = 0; i < E; i++) { off[e[2 * i] + 1]++; off[e[2 * i + 1] + 1]++; }
-    for (let v = 0; v < N; v++) off[v + 1] += off[v];
-    const cursor = off.slice(0, N);
-    const viz = new Int32Array(2 * E), are = new Int32Array(2 * E);
-    for (let i = 0; i < E; i++) {
-      const a = e[2 * i], b = e[2 * i + 1];
-      viz[cursor[a]] = b; are[cursor[a]++] = i;
-      viz[cursor[b]] = a; are[cursor[b]++] = i;
-    }
-    S.G = { N, E, n, e, c, peso, metros, off, viz, are, meta: g.meta || {} };
+    S.G = montarCSR(g, (ci) => fator[ci] || 1);
     S.cacheDij = new Map(); S.cacheSnap = new Map(); S.cacheSaida = new Map();
     console.info('[mapa3d] grafo viário: %d nós · %d arestas · %s km',
-      N, E, (g.meta && g.meta.km) || '?');
+      S.G.N, S.G.E, (g.meta && g.meta.km) || '?');
   } catch (err) {
     console.warn('[mapa3d] grafo_rbs.json indisponível — o modo rotas fica indisponível', err);
     S.G = null;
   }
+}
+
+/* ── GRAFO REGIONAL (26/08, ordem do dono: "não podemos ter linha reta no mapa").
+ * Rodovias reais (OSM: BR/PR principais) do município até cada cidade-âncora. O trecho
+ * intermunicipal deixa de ser reta gelo e corre pela estrada de verdade. OPCIONAL por
+ * construção: sem o arquivo, tudo se comporta exatamente como antes. Classes do arquivo:
+ * 0=motorway/trunk 1=primary 2=secondary 3=tertiary — rodovia maior pesa menos. */
+const FATOR_REG = [1.45, 1.25, 1.0, 0.85];
+async function carregarGrafoRegional() {
+  try {
+    await expurgar('../data/grafo_reg.json');
+    const g = await (await fetch('../data/grafo_reg.json', { cache: 'reload' })).json();
+    S.GR = montarCSR(g, (ci) => FATOR_REG[ci] || 1);
+    S.cacheDijR = new Map(); S.cacheSnapR = new Map(); S.cacheTrechoR = new Map();
+    console.info('[mapa3d] grafo REGIONAL: %d nós · %d arestas · %s km',
+      S.GR.N, S.GR.E, (g.meta && g.meta.km) || '?');
+  } catch (err) {
+    console.info('[mapa3d] sem grafo_reg.json — intermunicipal segue em reta (comportamento antigo)');
+    S.GR = null;
+  }
+}
+
+function snapR(pos) {
+  const G = S.GR; if (!G) return null;
+  const k = ((pos[0] * 2000) | 0) + ',' + ((pos[1] * 2000) | 0);
+  if (S.cacheSnapR.has(k)) return S.cacheSnapR.get(k);
+  let melhor = -1, md = Infinity;
+  for (let v = 0; v < G.N; v++) {
+    const d = hav(pos[0], pos[1], G.n[2 * v], G.n[2 * v + 1]);
+    if (d < md) { md = d; melhor = v; }
+  }
+  const r = melhor < 0 ? null : { no: melhor, d: md };
+  S.cacheSnapR.set(k, r);
+  return r;
+}
+
+/* mesmo Dijkstra do municipal, sobre S.GR e com memo próprio — duplicado de propósito:
+ * parametrizar o municipal em plena operação de campo custaria risco por elegancia. */
+function dijkstraR(src) {
+  if (S.cacheDijR.has(src)) return S.cacheDijR.get(src);
+  const G = S.GR, N = G.N;
+  const dist = new Float64Array(N).fill(Infinity);
+  const prevN = new Int32Array(N).fill(-1);
+  const prevE = new Int32Array(N).fill(-1);
+  const pronto = new Uint8Array(N);
+  const hd = [0], hn = [src];
+  dist[src] = 0;
+  const troca = (i, j) => { const a = hd[i]; hd[i] = hd[j]; hd[j] = a;
+    const b = hn[i]; hn[i] = hn[j]; hn[j] = b; };
+  const empurrar = (d, v) => {
+    let i = hd.length; hd.push(d); hn.push(v);
+    while (i > 0) { const p = (i - 1) >> 1; if (hd[p] <= hd[i]) break; troca(p, i); i = p; }
+  };
+  while (hd.length) {
+    const v = hn[0];
+    const ult = hd.length - 1;
+    hd[0] = hd[ult]; hn[0] = hn[ult]; hd.pop(); hn.pop();
+    let i = 0; const m = hd.length;
+    for (;;) {
+      const l = 2 * i + 1, r = l + 1; let sm = i;
+      if (l < m && hd[l] < hd[sm]) sm = l;
+      if (r < m && hd[r] < hd[sm]) sm = r;
+      if (sm === i) break; troca(sm, i); i = sm;
+    }
+    if (pronto[v]) continue;
+    pronto[v] = 1;
+    for (let k = G.off[v]; k < G.off[v + 1]; k++) {
+      const u = G.viz[k], a = G.are[k];
+      const nd = dist[v] + G.peso[a];
+      if (nd < dist[u]) { dist[u] = nd; prevN[u] = v; prevE[u] = a; empurrar(nd, u); }
+    }
+  }
+  const r = { dist, prevN, prevE };
+  if (S.cacheDijR.size > 24) S.cacheDijR.clear();
+  S.cacheDijR.set(src, r);
+  return r;
+}
+
+/* trecho regional A→B (coordenadas [lon,lat]) como polilinha — null se não alcançar.
+ * Cache por par arredondado (~200 m): todo mundo que vai à MESMA cidade reaproveita. */
+const SNAP_REG_M = 2500;
+function trechoRegional(de, ate) {
+  if (!S.GR) return null;
+  const k = ((de[0] * 500) | 0) + ',' + ((de[1] * 500) | 0) + '>' + ((ate[0] * 500) | 0) + ',' + ((ate[1] * 500) | 0);
+  if (S.cacheTrechoR.has(k)) return S.cacheTrechoR.get(k);
+  let out = null;
+  const sa = snapR(de), sb = snapR(ate);
+  if (sa && sb && sa.d <= SNAP_REG_M && sb.d <= SNAP_REG_M && sa.no !== sb.no) {
+    const D = dijkstraR(sa.no);
+    if (D.dist[sb.no] < Infinity) {
+      const ns = [sb.no];
+      let v = sb.no, guarda = 0, ok = true;
+      while (v !== sa.no && guarda++ < 300000) {
+        if (D.prevN[v] < 0) { ok = false; break; }
+        v = D.prevN[v]; ns.push(v);
+      }
+      if (ok && v === sa.no) {
+        ns.reverse();
+        out = ns.map((x) => [S.GR.n[2 * x], S.GR.n[2 * x + 1]]);
+      }
+    }
+  }
+  S.cacheTrechoR.set(k, out);
+  return out;
 }
 
 /* nó da malha mais próximo, com a distância do salto. Cache por célula de ~55 m —
@@ -944,16 +1056,20 @@ function eixoDoTempo(fios) {
   let maxBase = 0;
   for (const f of fios) {
     const P = f.path;
+    /* metros → unidade de tempo POR SEGMENTO. Dividir pela velocidade é o que faz o
+       modal aparecer: o mesmo quarteirão custa 7× mais tempo a pé do que de carro.
+       Além do `corte` (início do trecho REGIONAL) a velocidade é de RODOVIA (2.5×):
+       sem isso uma viagem a Curitiba esticaria o laço de ~23 s para minutos. */
+    const esc = 3.0 / (VKMH[f.a.modal] || V_PADRAO);
+    const escR = esc / 2.5;
     const ts = [0];
     let acc = 0;
     for (let i = 1; i < P.length; i++) {
-      acc += Math.hypot((P[i][0] - P[i - 1][0]) * M_LON, (P[i][1] - P[i - 1][1]) * M_LAT);
+      const dm = Math.hypot((P[i][0] - P[i - 1][0]) * M_LON, (P[i][1] - P[i - 1][1]) * M_LAT);
+      acc += dm * (f.corte && i > f.corte ? escR : esc);
       ts.push(acc);
     }
-    /* metros → unidade de tempo. Dividir pela velocidade é o que faz o modal aparecer:
-       o mesmo quarteirão custa 7× mais tempo a pé do que de carro. */
-    const esc = 3.0 / (VKMH[f.a.modal] || V_PADRAO);
-    f.base = ts.map((x) => x * esc);
+    f.base = ts;
     if (f.base[f.base.length - 1] > maxBase) maxBase = f.base[f.base.length - 1];
   }
   /* 1.08 e não 1.6: a folga só serve para a viagem MAIS LONGA não ficar colada em t=0.
@@ -982,7 +1098,7 @@ function montarRotas() {
   const legs = new Map(), paradas = new Map();
   const diretas = [], fios = [];
   const cacheCam = new Map();
-  let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0, proxy = 0;
+  let naMalha = 0, foraMalha = 0, curtas = 0, semDestino = 0, proxy = 0, regionais = 0;
 
   const anel = (pos, campo) => {
     const s = snap(pos); if (!s) return;
@@ -1004,18 +1120,34 @@ function montarRotas() {
     }
     if (a.inter) {
       const oFora = a.tipoO === 'municipio', dFora = a.tipoD === 'municipio';
-      if (oFora && dFora) { reta(); continue; }               // cidade → cidade: sem malha nossa
+      if (oFora && dFora) {
+        /* cidade → cidade: sem malha NOSSA — mas com o grafo regional a viagem corre
+           pela rodovia real entre as duas sedes. Sem ele, reta como antes. */
+        const reg2 = trechoRegional(a.o, a.d);
+        if (reg2) {
+          fios.push({ path: reg2.map((q) => [q[0], q[1], Z_FIO]), a, inter: true, corte: 0 });
+          regionais++;
+        } else reta();
+        continue;
+      }
       const dentro = oFora ? a.d : a.o, fora = oFora ? a.o : a.d;
       const sa = snap(dentro), porta = saidaPara(a.cidade, fora);
       if (!sa || sa.d > SNAP_MAX_M || porta < 0) { reta(); continue; }
       const cam = caminho(sa.no, porta, cacheCam);
       if (!cam) { reta(); continue; }
       for (const e of cam.e) cont[e]++;
-      /* o fio intermunicipal termina na porta da malha e emenda a reta gelo até a sede:
-         a viagem inteira num traço só, sem fingir que temos a estrada de lá.          */
-      fios.push({ path: [...fio(cam.n, idx), [fora[0], fora[1], Z_FIO]], a, inter: true });
-      const L = legs.get(a.cidade) || { cidade: a.cidade, no: porta, pos: fora, n: 0 };
-      L.n++; legs.set(a.cidade, L);
+      /* o fio intermunicipal termina na porta da malha e emenda até a sede vizinha:
+         pela RODOVIA REAL quando o grafo regional alcança (26/08), reta gelo só como
+         degradação honesta quando não há caminho. A viagem inteira num traço só. */
+      const base = fio(cam.n, idx);
+      const portaPos = [G.n[2 * porta], G.n[2 * porta + 1]];
+      const reg = trechoRegional(portaPos, fora);
+      const cauda = reg ? reg.map((q) => [q[0], q[1], Z_FIO]) : [[fora[0], fora[1], Z_FIO]];
+      fios.push({ path: [...base, ...cauda], a, inter: true, corte: base.length - 1 });
+      if (reg) regionais++;
+      const L = legs.get(a.cidade) || { cidade: a.cidade, no: porta, pos: fora, n: 0, reg: null };
+      L.n++; if (reg && !L.reg) L.reg = reg;
+      legs.set(a.cidade, L);
       naMalha++;
       continue;
     }
@@ -1064,14 +1196,16 @@ function montarRotas() {
   }
   const pernas = [...legs.values()].map((L) => ({
     cidade: L.cidade, n: L.n,
-    path: [[G.n[2 * L.no], G.n[2 * L.no + 1], Z_BASE + 40],
-           [L.pos[0], L.pos[1], Z_BASE + 40]],
+    path: L.reg
+      ? L.reg.map((q) => [q[0], q[1], Z_BASE + 40])
+      : [[G.n[2 * L.no], G.n[2 * L.no + 1], Z_BASE + 40],
+         [L.pos[0], L.pos[1], Z_BASE + 40]],
   }));
   const aneis = [...paradas].map(([no, A]) => ({
     pos: [G.n[2 * no], G.n[2 * no + 1]], n: A.curtas + A.semDestino, ...A }));
   const T = eixoDoTempo(fios);
   S.rotas = { segs, pernas, diretas, aneis, fios, maxC, naMalha, foraMalha, curtas, semDestino,
-              proxy, loop: T.loop, trail: T.trail, ms: Math.round(performance.now() - t0) };
+              proxy, regionais, loop: T.loop, trail: T.trail, ms: Math.round(performance.now() - t0) };
 }
 
 /* ═══ 4. Camadas ════════════════════════════════════════════════════════════════ */
@@ -1389,7 +1523,7 @@ function tooltip({ object, layer }) {
   if (layer.id === 'rotas-perna') return { html:
     `<b style="color:rgb(${GELO.join(',')})">${num(object.n)} viagem${object.n > 1 ? 's' : ''}</b>
      <span style="color:#66768a">saindo da malha rumo a</span> <b>${esc(object.cidade)}</b><br>
-     <span style="color:#66768a">o trecho fora do município é reto: não temos a malha de lá</span>` };
+     <span style="color:#66768a">${S.GR ? 'seguindo a rodovia real (OSM) até a sede vizinha' : 'o trecho fora do município é reto: não temos a malha de lá'}</span>` };
   if (layer.id === 'rotas-aneis') return { html:
     `<b style="color:#ffd23f">${num(object.n)} viagem${object.n > 1 ? 's' : ''} sem rota aqui</b><br>
      <span style="color:#66768a">${object.proxy ? num(object.proxy) + ' curta a pé (≤ 2 quadras) — destino aproximado, rebaixado no QC<br>' : ''}${
@@ -1530,6 +1664,8 @@ function pintarLegendaRotas() {
       `<div class="fita" style="margin-top:.45rem"><i style="width:22px;height:3px;background:rgb(${corVolume(1).join(',')})"></i> trecho mais carregado <b style="margin-left:auto;color:var(--txt)">${num(R.maxC)}</b></div>`,
       `<div class="fita"><i style="width:22px;height:3px;background:rgb(${GELO.join(',')})"></i> saída rumo à cidade vizinha <b style="margin-left:auto;color:var(--txt)">${num(R.pernas.reduce((a, p) => a + p.n, 0))}</b></div>`);
   }
+  if (R.regionais) linhas.push(
+    `<div class="fita"><i style="width:22px;height:2px;background:rgb(${GELO.join(',')})"></i> \ud83d\udee3 intermunicipal pela rodovia REAL <b style="margin-left:auto;color:var(--txt)">${num(R.regionais)}</b></div>`);
   if (R.foraMalha) linhas.push(
     `<div class="fita"><i style="width:22px;height:2px;background:rgba(150,168,188,.55)"></i> fora da malha — reta, sem fingir rua <b style="margin-left:auto;color:var(--txt)">${num(R.foraMalha)}</b></div>`);
   if (R.proxy) linhas.push(
