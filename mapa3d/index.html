@@ -418,7 +418,15 @@ async function apiPost(corpo) {
     method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(corpo), cache: 'no-store',
   });
-  return JSON.parse(await r.text());
+  const txt = await r.text();
+  /* logo após um redeploy (e sob carga) o Google serve uma PÁGINA HTML de erro por
+     1-2 min no lugar do JSON. Nome certo na tela, não "Unexpected token '<'". */
+  try { return JSON.parse(txt); }
+  catch (e) {
+    throw new Error(txt.trim().startsWith('<')
+      ? 'instabilidade momentânea do Google — nova tentativa automática em instantes'
+      : 'resposta ilegível da API');
+  }
 }
 
 async function buscar() {
@@ -462,6 +470,9 @@ async function buscar() {
   } catch (e) {
     S.erro = 'Falha ao consultar a API: ' + e.message + ' — o mapa abaixo é o da última leitura.';
     pintarErro();
+    /* retry RÁPIDO único (12 s): o poll normal é 60 s — transiente não pode segurar a
+       faixa vermelha um minuto inteiro na tela do diretor. */
+    if (!S.retryRapido) S.retryRapido = setTimeout(() => { S.retryRapido = null; buscar(); }, 12000);
   } finally { S.ocupado = false; S.primeiraCarga = false; tique(); }
 }
 
