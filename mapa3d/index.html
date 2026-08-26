@@ -165,7 +165,7 @@ button:hover,select:hover{border-color:var(--txt3)}
     <span><label for="entrev" title="Um pontinho por leitura, no lugar EXATO onde a entrevista aconteceu (GPS da abordagem). Vale nas duas vistas.">
       <input type="checkbox" id="entrev"> Pontos de entrevista</label></span>
     <span><label for="qdia" title="Um dia da pesquisa, ou o acumulado de todos os dias. A lista de dias é a DIAS_CAMPO do config.js.">Dia</label>
-    <select id="qdia"><option value="" selected>Hoje</option><option value="2026-08-25">D1 · 25/08</option><option value="2026-08-26">D2 · 26/08</option><option value="2026-08-27">D3 · 27/08</option><option value="2026-08-31">D4 · 31/08</option><option value="2026-09-01">D5 · 01/09</option><option value="todos">Acumulado — todos</option></select></span>
+    <select id="qdia"><option value="" selected>Hoje</option><option value="2026-08-25">D1 · 25/08</option><option value="2026-08-26">D2 · 26/08</option><option value="2026-08-27">D3 · 27/08</option><option value="todos">Acumulado — todos</option></select></span>
     <button id="btn-vista" type="button" title="Voltar ao enquadramento do município">⤢ Reenquadrar</button>
     <button id="btn-agora" type="button" title="Atualizar agora">⟳ Atualizar</button>
     <button id="btn-travar" type="button" title="Esquecer o acesso nesta aba">🔒</button>
@@ -451,7 +451,7 @@ async function buscar() {
       S.erro = j.erro || 'a API recusou a consulta.'; pintarErro(); return;
     }
     S.falhasAuth = 0;
-    S.erro = ''; pintarErro();
+    S.erro = ''; S.falhasRede = 0; pintarErro();
     S.bruto = j; S.buscadoEm = Date.now();
     montarArcos(j);
     /* uma ÚNICA vez, quando as cidades vizinhas aparecem: reenquadra para caberem —
@@ -468,10 +468,15 @@ async function buscar() {
     $('quem').textContent = j.papel === 'diretor' ? 'diretor' : 'gestor de campo · G01';
     document.title = `${j.total} leituras — Mapa 3D OD RBS`;
   } catch (e) {
-    S.erro = 'Falha ao consultar a API: ' + e.message + ' — o mapa abaixo é o da última leitura.';
-    pintarErro();
-    /* retry RÁPIDO único (12 s): o poll normal é 60 s — transiente não pode segurar a
-       faixa vermelha um minuto inteiro na tela do diretor. */
+    /* Soluço de UMA rodada não vira faixa vermelha ("volta e meia está dando isso" —
+       dono, 26/08): o Apps Script sob carga solta erro isolado com frequência, o retry
+       de 12 s abaixo o engole, e o "atualizado há X" já conta a idade real do dado.
+       Vermelho SÓ na 2ª falha seguida — aí é indisponibilidade de verdade. */
+    S.falhasRede = (S.falhasRede || 0) + 1;
+    if (S.falhasRede >= 2) {
+      S.erro = 'Falha ao consultar a API: ' + e.message + ' — o mapa abaixo é o da última leitura.';
+      pintarErro();
+    } else console.warn('[mapa3d] soluço engolido (retry em 12 s):', e.message);
     if (!S.retryRapido) S.retryRapido = setTimeout(() => { S.retryRapido = null; buscar(); }, 12000);
   } finally { S.ocupado = false; S.primeiraCarga = false; tique(); }
 }

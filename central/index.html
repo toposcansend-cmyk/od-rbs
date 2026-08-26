@@ -281,7 +281,7 @@ table.linhas .lug{max-width:230px}
   <div id="dados-conteudo" hidden>
     <div class="barra-dados">
       <label for="qdia" class="qq">Dia</label>
-      <select id="qdia" style="background:var(--bg2);color:var(--txt);border:1px solid var(--linha);border-radius:8px;padding:.3rem .5rem"><option value="" selected>Hoje</option><option value="2026-08-25">D1 · 25/08</option><option value="2026-08-26">D2 · 26/08</option><option value="2026-08-27">D3 · 27/08</option><option value="2026-08-31">D4 · 31/08</option><option value="2026-09-01">D5 · 01/09</option><option value="todos">Acumulado — todos</option></select>
+      <select id="qdia" style="background:var(--bg2);color:var(--txt);border:1px solid var(--linha);border-radius:8px;padding:.3rem .5rem"><option value="" selected>Hoje</option><option value="2026-08-25">D1 · 25/08</option><option value="2026-08-26">D2 · 26/08</option><option value="2026-08-27">D3 · 27/08</option><option value="todos">Acumulado — todos</option></select>
       <button id="btn-dados" type="button">⟳ Atualizar</button>
       <span class="qq" id="dados-idade">—</span>
       <div class="espaco"></div>
@@ -419,11 +419,15 @@ async function buscar() {
         : 'resposta ilegível da API');
     }
     if (!j.ok) { S.erro = j.erro || 'Acesso negado pela API.'; pintar(); return; }
-    S.dados = j; S.buscadoEm = Date.now(); S.erro = '';
+    S.dados = j; S.buscadoEm = Date.now(); S.erro = ''; S.falhasRede = 0;
   } catch (e) {
-    S.erro = 'Falha ao consultar a API: ' + e.message + ' — os números abaixo são os da última leitura.';
-    /* retry RÁPIDO único (12 s): o tique normal é 45 s e falha transiente não pode
-       segurar a tela vermelha por quase um minuto na frente do diretor. */
+    /* soluço de UMA rodada não vira faixa vermelha (dono, 26/08: "volta e meia dá isso");
+       o retry de 12 s abaixo o engole e o "atualizado há" conta a idade real. Vermelho
+       SÓ na 2ª falha seguida — aí é indisponibilidade de verdade. */
+    S.falhasRede = (S.falhasRede || 0) + 1;
+    if (S.falhasRede >= 2)
+      S.erro = 'Falha ao consultar a API: ' + e.message + ' — os números abaixo são os da última leitura.';
+    else console.warn('[central] soluço engolido (retry em 12 s):', e.message);
     if (!S.retryRapido) S.retryRapido = setTimeout(() => { S.retryRapido = null; buscar(); }, 12000);
   }
   pintar();
