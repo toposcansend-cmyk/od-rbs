@@ -342,6 +342,7 @@ const S = {
   pontoPos: new Map(),      // ponto_id -> {pos,nome}  — a queda final de coordenada
   centroMun: null,          // último recurso absoluto: o meio do município
   pontos: [], vias: null, limite: null,
+  equipePos: [],           // posição da equipe (equipe_pos das vistas travadas) — 26/08
   quadras: null,            // polígonos dos quarteirões (IBGE Censo 2022) — o chão da cidade
   leito: null,              // malha viária pronta para desenhar, derivada do grafo 1×
   externos: [], cidades: [],
@@ -425,6 +426,7 @@ async function buscar() {
   S.ocupado = true;
   try {
     const j = await apiPost({ action: 'arcos_hoje', dia: S.dia, ...corpoAuth(S.cred) });
+    S.equipePos = j.equipe_pos || [];
     if (!j.ok) {
       /* ACHADO 25/08, ao vivo: um poll isolado voltou recusado e a tela se trancou
        * sozinha — o dono voltaria para um teclado numérico em vez do mapa. Esta é uma
@@ -1167,6 +1169,26 @@ function camadas() {
     }));
   }
 
+  /* ── EQUIPE AO VIVO (26/08): um pino verde por pesquisador, na última posição que o
+   * aparelho reportou (heartbeat ≤ 3 min com sinal). Sempre visível — são 5 pontos. */
+  if (S.equipePos && S.equipePos.length) {
+    L.push(new deck.ScatterplotLayer({
+      id: 'equipe', data: S.equipePos, pickable: true,
+      getPosition: (p) => [p.lon, p.lat],
+      radiusUnits: 'pixels', getRadius: 7, radiusMinPixels: 6,
+      filled: true, stroked: true, getFillColor: [63, 214, 143, 235],
+      getLineColor: [255, 255, 255, 245], lineWidthUnits: 'pixels', getLineWidth: 1.6,
+    }));
+    L.push(new deck.TextLayer({
+      id: 'equipe-rotulo', data: S.equipePos, pickable: false,
+      getPosition: (p) => [p.lon, p.lat], getText: (p) => p.id,
+      getSize: 11, sizeUnits: 'pixels', getColor: [255, 255, 255, 255],
+      getPixelOffset: [0, -15], outlineWidth: 3, outlineColor: [4, 7, 10, 255],
+      fontFamily: 'system-ui, sans-serif', fontWeight: 700, fontSettings: { sdf: true },
+      characterSet: 'auto',
+    }));
+  }
+
   if (rotas) montarCamadasRotas(L);
 
   if (!rotas) L.push(new deck.ArcLayer({
@@ -1345,6 +1367,10 @@ function tooltip({ object, layer }) {
   }
   /* o anel da curta a pé É uma leitura: mesmo balão do arco, com a ressalva do proxy */
   if (layer.id === 'arcos-proxy') return tooltip({ object, layer: { id: 'arcos' } });
+  if (layer.id === 'equipe') { const min = object.em ? Math.round((Date.now() - object.em) / 60000) : null;
+    return { html: `<b style="color:#3fd68f">${esc(object.id)} · ${esc(object.nome || '')}</b><br>
+      <span style="color:#66768a">${min == null ? 'sem horário' : min <= 1 ? 'agora mesmo' : 'há ' + min + ' min'}${
+      object.acc ? ' · ±' + object.acc + ' m' : ''} · última posição reportada</span>` }; }
   if (layer.id === 'entrevistas') return { html:
     `<b style="color:#3dd6f5">entrevista às ${esc(object.hora)}</b><br>
      <span style="color:#66768a">${esc(object.pesq)} · ${esc(object.ponto)} · GPS da abordagem</span>` };

@@ -262,7 +262,8 @@ export function aplicarAck(enviados, resposta) {
  * Qualquer falha de rede/HTTP/JSON devolve tudo para a fila.
  */
 export async function enviarLote({ fetchImpl, url, token, pesquisador_id, device_id,
-                                   itens, fila_pendente = 0, app_version = '', timeoutMs = 30000 }) {
+                                   itens, fila_pendente = 0, app_version = '', gps = null,
+                                   timeoutMs = 30000 }) {
   const ids = itens.map((i) => i.uuid);
   if (!itens.length) return { sincronizados: [], mantidos: [], erro: null, schema_version: null, feito_pontos: null };
   if (!url) return { sincronizados: [], mantidos: ids, erro: 'API_URL não configurada', schema_version: null, feito_pontos: null };
@@ -271,6 +272,7 @@ export async function enviarLote({ fetchImpl, url, token, pesquisador_id, device
     action: 'respostas',
     token, pesquisador_id, device_id, app_version,
     fila_pendente,
+    gps,                                   // posição do APARELHO no envio (0.9.21) — vira heartbeat
     respostas: itens.filter((i) => i.tipo !== 'recusa').map((i) => i.payload),
     recusas: itens.filter((i) => i.tipo === 'recusa').map((i) => i.payload),
     enviado_em: new Date().toISOString(),

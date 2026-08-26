@@ -337,11 +337,38 @@ async function contarHoje() {
   return a.filter((i) => i.dia === d).length;
 }
 
+/* posição atual do aparelho, no formato que o heartbeat do servidor guarda */
+const fixAtual = () => S.fix
+  ? { lat: +S.fix.lat.toFixed(6), lon: +S.fix.lon.toFixed(6), acc: Math.round(S.fix.acc || 0) }
+  : null;
+
+/* Batimento de POSIÇÃO (0.9.21, pedido do dono 26/08: "onde o pessoal está em tempo
+ * real"). Com a fila vazia o sync não postava nada e a equipe sumia da Central entre
+ * entrevistas. No máximo 1 a cada 3 min, só online, fire-and-forget — falha aqui não
+ * pode custar NADA (nem toast: é um aceno, não uma operação). */
+async function baterPosicao() {
+  if (!S.sessao || !navigator.onLine || !API_URL) return;
+  const agora = Date.now();
+  if (agora - (S.ultimoBeat || 0) < 180000) return;
+  S.ultimoBeat = agora;
+  try {
+    await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'respostas', token: S.sessao.token,
+        pesquisador_id: S.sessao.pesquisador_id, device_id: S.sessao.device_id,
+        app_version: APP_VERSION, fila_pendente: 0, respostas: [], recusas: [],
+        gps: fixAtual(), enviado_em: new Date().toISOString() }) });
+  } catch (e) { /* silêncio */ }
+}
+
 async function sincronizar(manual = false) {
   if (S.enviando || !S.sessao) return;
   if (!navigator.onLine && !manual) return;
   const pend = await itensPendentes();
-  if (!pend.length) { if (manual) toast('Nada na fila. Tudo sincronizado.', 'ok'); return; }
+  if (!pend.length) {
+    if (manual) toast('Nada na fila. Tudo sincronizado.', 'ok');
+    baterPosicao();                        // fila vazia ≠ equipe invisível na Central
+    return;
+  }
   if (!API_URL) { if (manual) toast('API_URL não configurada (ver DEPLOY.md).', 'erro'); return; }
 
   S.enviando = true; el('h-sync').classList.add('enviando');
@@ -355,7 +382,9 @@ async function sincronizar(manual = false) {
       url: API_URL, token: S.sessao.token,
       pesquisador_id: S.sessao.pesquisador_id, device_id: S.sessao.device_id,
       app_version: APP_VERSION, itens: lote, fila_pendente: pend.length,
+      gps: fixAtual(),
     });
+    S.ultimoBeat = Date.now();             // lote com dado também é batimento de posição
 
     /* SOMENTE os uuids que voltaram em acked saem da fila (regra da casa) */
     for (const i of lote) {

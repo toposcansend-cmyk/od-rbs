@@ -189,6 +189,7 @@ table.linhas .lug{max-width:230px}
   header{padding:.5rem .7rem} header .tit{font-size:15px} #relogio{font-size:21px}
   .wrap{padding:0 .7rem} .tile .val{font-size:26px}
 }
+.rot-equipe{background:#0b1420cc;border:1px solid #2c3949;color:#e8eef5;font-weight:700;font-size:10px;padding:1px 5px;border-radius:6px}
 </style>
 </head>
 <body>
@@ -641,7 +642,28 @@ async function iniciarMapa() {
     $('leg-fundo').textContent = 'fundo indisponível no momento — só os pontos';
   }
   S.camadaPontos = L.layerGroup().addTo(S.mapa);
+  S.camadaEquipe = L.layerGroup().addTo(S.mapa);
   desenharPontos();
+  desenharEquipe();
+}
+
+/* EQUIPE AO VIVO (26/08, pedido do dono). Fonte: `equipe_pos` da linhas_hoje —
+ * vista travada; a posição vem do heartbeat do app (0.9.21), no máximo 3 min entre
+ * batidas quando há sinal. Marcador verde = fresco (< 10 min); âmbar = 10-40 min;
+ * cinza = mais velho (zona morta — é a última posição CONHECIDA, e diz isso). */
+function desenharEquipe() {
+  if (!S.mapa || !S.camadaEquipe) return;
+  S.camadaEquipe.clearLayers();
+  for (const q of (QD.equipePos || [])) {
+    const min = q.em ? Math.round((Date.now() - q.em) / 60000) : null;
+    const cor = min == null ? '#5b6b7c' : min <= 10 ? '#3fd68f' : min <= 40 ? '#d29922' : '#5b6b7c';
+    L.circleMarker([q.lat, q.lon], { radius: 8, color: '#fff', weight: 1.6, fillColor: cor, fillOpacity: .95 })
+      .bindTooltip(`${q.id}`, { permanent: true, direction: 'top', offset: [0, -8], className: 'rot-equipe' })
+      .bindPopup(`<b>${q.id} · ${esc(q.nome || '')}</b><br>${min == null ? 'sem horário' :
+        min <= 1 ? 'agora mesmo' : 'há ' + min + ' min'}${q.acc ? ' · ±' + q.acc + ' m' : ''}<br>
+        <small>última posição conhecida — atualiza a cada sync do aparelho</small>`)
+      .addTo(S.camadaEquipe);
+  }
 }
 
 function desenharPontos() {
@@ -1018,6 +1040,8 @@ async function carregarLinhas() {
        resposta do dia. Repinta o placar na hora — senão o número só apareceria no próximo
        ciclo de 45 s da Visão, e o gestor voltaria da aba Dados para um tile ainda vazio. */
     QD.linhas = D.linhas; QD.meta = j;
+    QD.equipePos = j.equipe_pos || [];
+    desenharEquipe();
     if (S.dados) placar(S.dados);
     qualidadePorPesquisador(D.linhas);
     conformidade(D.linhas, j);
