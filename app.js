@@ -387,6 +387,13 @@ function ligarSync() {
   }).catch(() => {});
   navigator.serviceWorker?.addEventListener('message', (e) => {   // o SW acorda o app após Background Sync
     if (e.data?.tipo === 'sincronize') sincronizar(false);
+    /* Versão nova instalada (0.9.20+): o SW não recarrega mais ninguém à força
+       (incidente D3 — apagava a entrevista em andamento). Ocioso = troca já;
+       no meio de entrevista = troca no próximo "entre entrevistas". */
+    if (e.data?.tipo === 'sw_atualizado') {
+      if (S.vista === 'entrevista' && S.r) { S.reloadPendente = true; }
+      else location.reload();
+    }
   });
 }
 
@@ -464,7 +471,7 @@ function render() {
   switch (S.vista) {
     case 'login': return vLogin();
     case 'ponto': return vPonto();
-    case 'entrevista': return vTela();
+    case 'entrevista': salvarRascunho(); return vTela();
     case 'recusa': return vRecusa();
     case 'fila': return vFila();
     case 'gestao': return vGestao();
@@ -635,7 +642,21 @@ function telasAtivas() {
   });
 }
 
+/* ---- RASCUNHO PERSISTENTE (0.9.20 — incidente D3 26/08). A entrevista vivia SÓ na
+ * RAM até o "Finalizar e salvar": qualquer reload (SW atualizando na volta do 4G — o
+ * caso do Luiz —, bateria, aba morta pelo sistema) apagava até 10 min de trabalho.
+ * Agora TODA troca de tela grava o estado inteiro no IndexedDB e o boot oferece
+ * continuar de onde parou. Fire-and-forget: falha de escrita não trava a entrevista. */
+function salvarRascunho() {
+  if (!S.r) return;
+  metaSet('rascunho', { r: S.r, tela: S.tela, ponto: S.ponto, em: Date.now() }).catch(() => {});
+}
+const limparRascunho = () => metaSet('rascunho', null).catch(() => {});
+
 function novaEntrevista() {
+  /* atualização do app pendente? ESTE é o momento seguro — entre entrevistas,
+     nada na RAM além da sessão (que mora no IndexedDB). */
+  if (S.reloadPendente) { location.reload(); return; }
   S.r = {
     uuid: novoUuid(), schema_version: S.schema.schema_version, app_version: APP_VERSION,
     pesquisador_id: S.sessao.pesquisador_id, device_id: S.sessao.device_id,
@@ -675,7 +696,7 @@ async function telaAnterior() {
       });
       if (q !== 'sim') return;
     }
-    S.r = null; wakeOff(); irPara('ponto'); return;
+    S.r = null; limparRascunho(); wakeOff(); irPara('ponto'); return;
   }
   S.tela--; render(); topo();
 }
@@ -1305,6 +1326,7 @@ async function salvar() {
   await put('respostas', {
     uuid: r.uuid, status: 'pendente', dia: hoje(), criado_em: r.ts_fim, payload: { ...r },
   });
+  limparRascunho();          // a entrevista agora mora na FILA — o rascunho cumpriu o papel
   /* Confirmação TÁTIL do gravado (0.9.17). Ataca o sintoma real do D1 — "deu OK e voltou pra
      origem", a incerteza sobre se registrou. Aditivo puro: sem permissão, degrada em silêncio
      no iPhone. Fica só aqui e no bloqueio: vibrar a cada avanço de tela, com 9 telas e 150
@@ -1592,6 +1614,7 @@ async function vFila() {
     if (q !== 'sim') return;
     await metaSet('sessao', null);
     await metaSet('cache_gestao', null);          // quadro do gestor não fica no aparelho do próximo
+    await metaSet('rascunho', null);              // rascunho é do usuário que saiu
     S.sessao = null; S.ponto = null; S.r = null; S.gestao = null; S.cotaAvisada = {};
     el('hdr').hidden = true;
     irPara('login');
@@ -1636,6 +1659,34 @@ async function boot() {
   if (!S.sessao) return irPara('login');
   if (S.sessao.validade && hoje() > S.sessao.validade)
     toast('Token vencido — fale com o coordenador.', 'erro');
+
+  /* RASCUNHO (0.9.20): o aparelho reiniciou (atualização, bateria, aba morta) com uma
+   * entrevista NO MEIO? Ela está aqui. Só oferece se for do MESMO pesquisador e
+   * recente (< 6 h) — rascunho de ontem ou de outro usuário é descartado em silêncio. */
+  const ras = await metaGet('rascunho');
+  if (ras && ras.r) {
+    const dele = ras.r.pesquisador_id === S.sessao.pesquisador_id;
+    const fresco = Date.now() - (ras.em || 0) < 6 * 3600e3;
+    if (dele && fresco) {
+      const q = await modal({
+        titulo: 'Entrevista em andamento recuperada',
+        corpo: `<p>O aplicativo reiniciou no meio de uma entrevista no ponto <b>${esc(ras.ponto?.ponto_id || '?')}</b>.
+                <br><b>Nada foi perdido.</b> Continuar de onde parou?</p>`,
+        acoes: [{ id: 'sim', rotulo: '▶ Continuar a entrevista', estilo: 'b-primario' },
+                { id: 'nao', rotulo: 'Descartar' }],
+      });
+      if (q === 'sim') {
+        S.ponto = ras.ponto || S.ponto;
+        S.r = ras.r;
+        S.tela = Math.min(ras.tela || 0, telasAtivas().length - 1);
+        atualizarQuadro();
+        irPara('entrevista');
+        return;
+      }
+    }
+    await metaSet('rascunho', null);
+  }
+
   atualizarQuadro();                                  // começa o dia com o quadro do time
   irPara('ponto');
 }

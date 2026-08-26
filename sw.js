@@ -14,7 +14,10 @@
  * aconteceu no 0.9.2 → 1.0: "app 0.9.2 · schema 1.0", e o V03 velho bloqueava todo
  * salvamento pedindo um campo `motivo` que o questionário novo não tem mais.
  * O test/fila_test.mjs falha se este número divergir do config.js. */
-const BUILD = '0.9.19';
+const BUILD = '0.9.20';
+/* Só vire `true` numa release que QUEBRA contrato shell×dado (schema incompatível):
+ * restaura o reload forçado no activate. Fora isso, NUNCA — ver incidente D3 abaixo. */
+const BREAKING = false;
 const CACHE = `od-rbs-v${BUILD}`;
 
 const SHELL = [
@@ -53,14 +56,22 @@ self.addEventListener('activate', (e) => {
     const antigos = nomes.filter((n) => n.startsWith('od-rbs-v') && n !== CACHE);
     await Promise.all(antigos.map((n) => caches.delete(n)));
     await self.clients.claim();
-    /* Havia versão anterior => a aba aberta ainda está rodando o CÓDIGO VELHO (o JS já
-       foi avaliado; trocar o cache não troca o que está na memória). Com o schema sendo
-       network-first, código velho + questionário novo = app que não salva. Recarrega.
-       Só na ATUALIZAÇÃO: em instalação limpa (antigos = []) não há nada para recarregar.
-       A fila mora no IndexedDB — recarregar não perde nada já salvo. */
+    /* INCIDENTE D3 (26/08 08h37, relato do Luiz): o reload forçado que vivia aqui
+       ("recarrega toda aba na ativação") disparava exatamente quando o 4G voltava do
+       vazio — que é quando o SW novo chega — e APAGAVA a entrevista EM ANDAMENTO, que
+       até 0.9.19 vivia só na RAM. "Quando salva ele tenta atualizar aí que perde."
+       Agora: AVISA o app e deixa ELE escolher a hora segura (entre entrevistas). O
+       app 0.9.20+ tem rascunho persistente e recarrega sozinho no próximo momento
+       ocioso; shells antigas ignoram a mensagem e pegam o código novo na próxima
+       abertura natural — sem schema quebrando, conviver uma tarde com shell velha é
+       barato; perder 10 min de entrevista não é. `BREAKING=true` restaura o reload
+       forçado para a única situação que o justifica. */
     if (antigos.length) {
       const cls = await self.clients.matchAll({ type: 'window' });
-      for (const c of cls) { try { await c.navigate(c.url); } catch (e) { /* aba ocupada: pega no próximo abrir */ } }
+      for (const c of cls) {
+        if (BREAKING) { try { await c.navigate(c.url); } catch (e) {} }
+        else { try { c.postMessage({ tipo: 'sw_atualizado', build: BUILD }); } catch (e) {} }
+      }
     }
   })());
 });
