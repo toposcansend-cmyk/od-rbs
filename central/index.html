@@ -422,6 +422,9 @@ async function buscar() {
     S.dados = j; S.buscadoEm = Date.now(); S.erro = '';
   } catch (e) {
     S.erro = 'Falha ao consultar a API: ' + e.message + ' — os números abaixo são os da última leitura.';
+    /* retry RÁPIDO único (12 s): o tique normal é 45 s e falha transiente não pode
+       segurar a tela vermelha por quase um minuto na frente do diretor. */
+    if (!S.retryRapido) S.retryRapido = setTimeout(() => { S.retryRapido = null; buscar(); }, 12000);
   }
   pintar();
 }
@@ -736,7 +739,7 @@ function tique() {
 /* ═══ 7. Ciclo ═══ */
 function agendar() {
   clearInterval(S.timer);
-  if (!S.pausado) S.timer = setInterval(buscar, 45000);
+  if (!S.pausado) S.timer = setInterval(buscar, 60000);   // 60 s: o cache do servidor é 25 s — 45 s só somava fila
 }
 $('btn-pausa').onclick = () => {
   S.pausado = !S.pausado;
